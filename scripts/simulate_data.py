@@ -1,0 +1,1 @@
+# Simulate 2D XRD patterns and write to appropriate H5, separate for training, validation

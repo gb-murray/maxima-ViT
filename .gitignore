@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+
+# IDE / Editor Configurations
+.idea/
+.vscode/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
+
+# --- Project-Specific ---
+
+# Large data files
+data/processed/*
+data/raw/*
+
+# Ignore trained model weights and checkpoints.
+models/*
