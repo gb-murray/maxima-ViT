@@ -1,0 +1,49 @@
+### Configuration for dataset generation ###
+
+paths:
+  # The output HDF5 file where the simulated data will be saved.
+  hdf5_file: 'data/raw/simulated_data.h5'
+
+calibrant:
+  # Calibrant material alias string.
+  - 'alpha_Al2O3'
+
+detector:
+  # Detector type alias string.
+  - 'Eiger2Cdte_1M'
+
+wavelength:
+  # Wavelength for the X-rays in meters.
+  - 1.54e-10
+
+geometry_ranges:
+  # Ranges for the random geometry parameters.
+  # The values are given as [min, max].
+  # Distance (dist) in meters.
+  dist: [0.1, 0.4]
+  # Poni1 in meters.
+  poni1: [-0.01, 0.01]
+  # Poni2 in meters.
+  poni2: [-0.01, 0.01]
+  # Rot1 in radians.
+  rot1: [-5.0, 5.0]
+  # Rot2 in radians.
+  rot2: [-5.0, 5.0]
+  # Rot3 in radians.
+  rot3: [-5.0, 5.0]
+
+generation:
+  # Number of images to generate.
+  num_images: 1000
+  # Signal-to-noise ratio range [min, max].
+  snr_range: [20, 100]
+  # Eta parameter range [min, max].
+  eta_range: [0.1, 0.9]
+  # Sharpness weighting range [min, max].
+  w_range: [0.1, 0.5]
+  # Broadening factor range [min, max].
+  broad_range: [0.5, 2.0]
+  # Minimum intensity range [min, max].
+  imin_range: [1.0, 5.0]
+  # Maximum intensity range [min, max].
+  imax_range: [100.0, 500.0]
