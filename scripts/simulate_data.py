@@ -1,21 +1,44 @@
-# Simulate 2D XRD patterns and write to appropriate H5, separate for training, validation
-
 import os
 import sys
+import yaml
+import h5py
+import tempfile
+import argparse
+import numpy as np
+from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
+from girder_client import GirderClient
 
+# Project Setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
 
-import h5py
-import numpy as np
-from tqdm import tqdm
-from multiprocessing import Pool, cpu_count
-import yaml 
-
 from src.data_pipeline import CalibrantSim
 from src.utils import get_calibrant, get_detector
 
+class GirderUploader:
+    """
+    Handles connection and file uploads to a Girder instance.
+    """
+    def __init__(self, api_url: str, api_key: str):
+        self.client = GirderClient(apiUrl=api_url)
+        self.client.authenticate(apiKey=api_key)
+        print(f"Successfully authenticated to Girder as '{self.client.get('user/me')['login']}'")
+
+    def upload(self, local_path: str, parent_folder_id: str, filename: str):
+        """Uploads a single file to a specific folder on Girder."""
+        print(f"\nUploading {filename} to Girder folder ID {parent_folder_id}...")
+        
+        self.client.uploadFileToFolder(
+            folderId=parent_folder_id,
+            filepath=local_path,
+            filename=filename
+        )
+        
+        print("Upload complete.")
+
+# Data Generation
 def sample_geometry(config: dict) -> dict:
     """Samples a random geometry dictionary from ranges defined in the config."""
     return {
@@ -28,65 +51,88 @@ def sample_geometry(config: dict) -> dict:
     }
 
 def generate_sample(config: dict):
-    """
-    Worker function to generate a single image and its label.
-    This function will be called by each parallel process.
-    """
-    # Each worker gets its own instances to avoid thread-safety issues
-    calibrant = get_calibrant(*config['calibrant'], *config['wavelengths']) 
-    detector = get_detector(*config['detector'])
-    
-    # Generate a random geometry for this sample
+    """Worker function to generate a single image and its label."""
+    calibrant = get_calibrant(config['calibrant'], config['wavelength'])
+    detector = get_detector(config['detector'])
     geometry_params = sample_geometry(config)
     
-    # Instantiate and run the simulation
     sim = CalibrantSim(calibrant, detector, geometry_params)
-    snr = np.random.uniform(*config['generation']['snr_range'])
-    eta = np.random.uniform(*config['generation']['eta_range'])
-    w_sharp = np.random.uniform(*config['generation']['w_range'])
-    broad_factor = np.random.uniform(*config['generation']['broad_range'])
-    imin = np.random.uniform(*config['generation']['imin_range'])
-    imax = np.random.uniform(*config['generation']['imax_range'])
-    image = sim.run(
-        snr=snr,
-        eta=eta,
-        w_sharp=w_sharp,
-        broad_factor=broad_factor,
-        imin=imin,
-        imax=imax
-    )
+    sim_params = {k: np.random.uniform(*v) for k, v in config['simulation_ranges'].items()}
+    image = sim.run(**sim_params)
     
-    # Return the image and its corresponding label
     label = np.array(list(geometry_params.values()), dtype=np.float32)
     return image, label
 
-def generate_dataset(config: dict):
-    """
-    Main function to orchestrate the parallel generation of the dataset.
-    """
-    num_samples = config['generation']['num_images']
-    hdf5_path = config['paths']['hdf5_file']
-    image_shape = get_detector(*config['detector']).shape
-    
-    # Use a multiprocessing Pool to parallelize generation
-    num_workers = cpu_count() - 1
-    
-    with h5py.File(hdf5_path, "w") as hf:
-        # Create datasets for images and labels with chunking for efficiency
-        dset_images = hf.create_dataset("images", (num_samples, *image_shape), dtype='f4', chunks=(1, *image_shape)) # type: ignore
-        dset_labels = hf.create_dataset("labels", (num_samples, 6), dtype='f4', chunks=(1, 6))
+# Orchestration Logic
 
-        with Pool(processes=num_workers) as pool:
-            results = pool.imap_unordered(generate_sample, [config] * num_samples)
+def _populate_group(h5_group, num_samples: int, config: dict, desc: str):
+    """Helper to run the simulation and fill an HDF5 group."""
+    if num_samples == 0:
+        return
+        
+    print(f"Generating {num_samples} samples for the '{desc}' set...")
+    image_shape = get_detector(config['detector']).shape
+    dset_images = h5_group.create_dataset("images", (num_samples, *image_shape), dtype='f4', chunks=(1, *image_shape)) # type: ignore
+    dset_labels = h5_group.create_dataset("labels", (num_samples, 6), dtype='f4', chunks=(1, 6))
+
+    with Pool(processes=cpu_count() - 1) as pool:
+        results = pool.imap_unordered(generate_sample, [config] * num_samples)
+        for i, (image, label) in enumerate(tqdm(results, total=num_samples, desc=desc)):
+            dset_images[i] = image
+            dset_labels[i] = label
+
+def generate_and_upload(config: dict):
+    """
+    Main function to generate the dataset with splits, save to a temporary
+    HDF5 file, and upload it to Girder.
+    """
+    # Calculate split sizes
+    n_total = config['generation']['num_images']
+    split_ratio = config['generation']['split_ratio']
+    n_train = int(n_total * split_ratio[0])
+    n_val = int(n_total * split_ratio[1])
+    n_test = n_total - n_train - n_val
+    
+    # Use a temporary file that is automatically deleted upon exit
+
+    tmp_dir = config['paths']['tmp_dir']
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(suffix=".hdf5", dir=tmp_dir) as tmp:
+        print(f"Generating dataset in temporary file: {tmp.name}")
+        with h5py.File(tmp.name, "w") as hf:
+            # Create HDF5 groups for each split
+            train_group = hf.create_group('train')
+            val_group = hf.create_group('validation')
+            test_group = hf.create_group('test')
             
-            for i, (image, label) in enumerate(tqdm(results, total=num_samples)):
-                dset_images[i] = image
-                dset_labels[i] = label
+            # Populate each group with data
+            _populate_group(train_group, n_train, config, "Training")
+            _populate_group(val_group, n_val, config, "Validation")
+            _populate_group(test_group, n_test, config, "Testing")
 
-    print(f"\nDataset with {num_samples} samples successfully generated at {hdf5_path}")
+        print("\nLocal HDF5 file generation complete.")
+        
+        # Connect to Girder and upload the file
+        girder_cfg = config['girder']
+        api_key = os.environ.get("GIRDER_API_KEY")
+        if not api_key:
+            raise ValueError("GIRDER_API_KEY environment variable not set.")
+            
+        uploader = GirderUploader(api_url=girder_cfg['api_url'], api_key=api_key)
+        uploader.upload(
+            local_path=tmp.name,
+            parent_folder_id=girder_cfg['parent_folder_id'],
+            filename=girder_cfg['filename']
+        )
+    print("Process finished.")
 
 if __name__ == '__main__':
-    with open("config.yaml", "r") as f:
+    parser = argparse.ArgumentParser(description="Generate and upload an XRD simulation dataset.")
+    parser.add_argument("config", help="Path to the YAML configuration file.")
+    args = parser.parse_args()
+
+    with open(args.config, "r") as f:
         config = yaml.safe_load(f)
     
-    generate_dataset(config)
+    generate_and_upload(config)

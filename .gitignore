@@ -30,3 +30,6 @@ data/raw/*
 
 # Ignore trained model weights and checkpoints.
 models/*
+
+# Private configs
+src/configs/*

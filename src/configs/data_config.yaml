@@ -1,20 +1,14 @@
 ### Configuration for dataset generation ###
 
 paths:
-  # The output HDF5 file where the simulated data will be saved.
-  hdf5_file: 'data/raw/simulated_data.h5'
+  # The temporary directory for holding the file before upload
+  tmp_dir: 'D:/temp/' 
 
-calibrant:
-  # Calibrant material alias string.
-  - 'alpha_Al2O3'
-
-detector:
-  # Detector type alias string.
-  - 'Eiger2Cdte_1M'
-
-wavelength:
-  # Wavelength for the X-rays in meters.
-  - 1.54e-10
+calibrant: 'alpha_Al2O3' # Calibrant material alias string.
+  
+detector: 'Eiger2Cdte_1M'  # Detector type alias string.
+ 
+wavelength:  1.54e-10 # Source wavelength in meters.
 
 geometry_ranges:
   # Ranges for the random geometry parameters.
@@ -26,19 +20,18 @@ geometry_ranges:
   # Poni2 in meters.
   poni2: [-0.01, 0.01]
   # Rot1 in radians.
-  rot1: [-5.0, 5.0]
+  rot1: [-0.001, 0.001]
   # Rot2 in radians.
-  rot2: [-5.0, 5.0]
+  rot2: [-0.001, 0.001]
   # Rot3 in radians.
-  rot3: [-5.0, 5.0]
+  rot3: [-0.001, 0.001]
 
-generation:
-  # Number of images to generate.
-  num_images: 1000
+simulation_ranges:
+  # Ranges for random simulation parameters
   # Signal-to-noise ratio range [min, max].
-  snr_range: [20, 100]
+  snr_range: [1.0, 10.0]
   # Eta parameter range [min, max].
-  eta_range: [0.1, 0.9]
+  eta_range: [0.4, 0.6]
   # Sharpness weighting range [min, max].
   w_range: [0.1, 0.5]
   # Broadening factor range [min, max].
@@ -47,3 +40,15 @@ generation:
   imin_range: [1.0, 5.0]
   # Maximum intensity range [min, max].
   imax_range: [100.0, 500.0]
+
+generation:
+  # Number of images to generate.
+  num_images: 100
+  # Division of dataset into [train, validation, test] subsets
+  split_ratio: [0.8, 0.1, 0.1]
+  
+girder:
+  # Parameters for file upload
+  api_url: "data.htmdec.org/api/v1"
+  parent_folder_id: "68d3f952ecbafc2edd6123a6"
+  filename: "MaxViT_alpha_Al2O3_Eiger2Cdte_1M_v0_dataset.hdf5"
