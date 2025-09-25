@@ -2,7 +2,7 @@
 
 import torch.nn as nn
 
-class XRDCalibrator(nn.Module):
+class MaxViTModel(nn.Module):
     def __init__(self, vit_backbone, regression_head):
         super().__init__()
         self.vit = vit_backbone

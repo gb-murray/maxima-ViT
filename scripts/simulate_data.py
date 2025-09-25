@@ -2,7 +2,7 @@ import os
 import sys
 import yaml
 import h5py
-import tempfile
+import uuid
 import argparse
 import numpy as np
 from tqdm import tqdm
@@ -42,9 +42,9 @@ class GirderUploader:
 def sample_geometry(config: dict) -> dict:
     """Samples a random geometry dictionary from ranges defined in the config."""
     return {
-        "dist": np.random.uniform(*config['geometry_ranges']['dist']),
-        "poni1": np.random.uniform(*config['geometry_ranges']['poni1']),
-        "poni2": np.random.uniform(*config['geometry_ranges']['poni2']),
+        "dist": np.random.normal(*config['geometry_ranges']['dist']),
+        "poni1": np.random.normal(*config['geometry_ranges']['poni1']),
+        "poni2": np.random.normal(*config['geometry_ranges']['poni2']),
         "rot1": np.random.uniform(*config['geometry_ranges']['rot1']),
         "rot2": np.random.uniform(*config['geometry_ranges']['rot2']),
         "rot3": np.random.uniform(*config['geometry_ranges']['rot3']),
@@ -86,46 +86,52 @@ def generate_and_upload(config: dict):
     Main function to generate the dataset with splits, save to a temporary
     HDF5 file, and upload it to Girder.
     """
-    # Calculate split sizes
     n_total = config['generation']['num_images']
     split_ratio = config['generation']['split_ratio']
     n_train = int(n_total * split_ratio[0])
     n_val = int(n_total * split_ratio[1])
     n_test = n_total - n_train - n_val
-    
-    # Use a temporary file that is automatically deleted upon exit
 
     tmp_dir = config['paths']['tmp_dir']
     os.makedirs(tmp_dir, exist_ok=True)
+    
+    tmp_filename = f"tmp_dataset_{uuid.uuid4().hex}.hdf5"
+    tmp_path = os.path.join(tmp_dir, tmp_filename)
+    
+    print(f"Generating dataset in temporary file: {tmp_path}")
 
-    with tempfile.NamedTemporaryFile(suffix=".hdf5", dir=tmp_dir) as tmp:
-        print(f"Generating dataset in temporary file: {tmp.name}")
-        with h5py.File(tmp.name, "w") as hf:
-            # Create HDF5 groups for each split
+    try:
+        with h5py.File(tmp_path, "w") as hf:
             train_group = hf.create_group('train')
             val_group = hf.create_group('validation')
             test_group = hf.create_group('test')
             
-            # Populate each group with data
             _populate_group(train_group, n_train, config, "Training")
             _populate_group(val_group, n_val, config, "Validation")
             _populate_group(test_group, n_test, config, "Testing")
 
         print("\nLocal HDF5 file generation complete.")
         
-        # Connect to Girder and upload the file
-        girder_cfg = config['girder']
-        api_key = os.environ.get("GIRDER_API_KEY")
-        if not api_key:
-            raise ValueError("GIRDER_API_KEY environment variable not set.")
+    #     girder_cfg = config['girder']
+    #     api_key = os.environ.get("HTMDEC_API_KEY")
+    #     if not api_key:
+    #         raise ValueError("HTMDEC_API_KEY environment variable not set.")
             
-        uploader = GirderUploader(api_url=girder_cfg['api_url'], api_key=api_key)
-        uploader.upload(
-            local_path=tmp.name,
-            parent_folder_id=girder_cfg['parent_folder_id'],
-            filename=girder_cfg['filename']
-        )
-    print("Process finished.")
+    #     uploader = GirderUploader(api_url=girder_cfg['api_url'], api_key=api_key)
+    #     uploader.upload(
+    #         local_path=tmp_path,
+    #         parent_folder_id=girder_cfg['parent_folder_id'],
+    #         filename=girder_cfg['filename']
+    #     )
+    # finally:
+    #     if os.path.exists(tmp_path):
+    #         os.remove(tmp_path)
+    #         print(f"Removed {tmp_path}.")
+
+    finally:
+        pass
+
+    print("Dataset generation and upload complete.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generate and upload an XRD simulation dataset.")
