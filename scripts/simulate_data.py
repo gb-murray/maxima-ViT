@@ -83,8 +83,7 @@ def _populate_group(h5_group, num_samples: int, config: dict, desc: str):
 
 def generate_and_upload(config: dict):
     """
-    Main function to generate the dataset with splits, save to a temporary
-    HDF5 file, and upload it to Girder.
+    Main function to generate the dataset with splits, save to a temporary HDF5 file, and upload it to Girder.
     """
     n_total = config['generation']['num_images']
     split_ratio = config['generation']['split_ratio']
@@ -112,24 +111,21 @@ def generate_and_upload(config: dict):
 
         print("\nLocal HDF5 file generation complete.")
         
-    #     girder_cfg = config['girder']
-    #     api_key = os.environ.get("HTMDEC_API_KEY")
-    #     if not api_key:
-    #         raise ValueError("HTMDEC_API_KEY environment variable not set.")
+        girder_cfg = config['girder']
+        api_key = os.environ.get("HTMDEC_API_KEY")
+        if not api_key:
+            raise ValueError("HTMDEC_API_KEY environment variable not set.")
             
-    #     uploader = GirderUploader(api_url=girder_cfg['api_url'], api_key=api_key)
-    #     uploader.upload(
-    #         local_path=tmp_path,
-    #         parent_folder_id=girder_cfg['parent_folder_id'],
-    #         filename=girder_cfg['filename']
-    #     )
-    # finally:
-    #     if os.path.exists(tmp_path):
-    #         os.remove(tmp_path)
-    #         print(f"Removed {tmp_path}.")
-
+        uploader = GirderUploader(api_url=girder_cfg['api_url'], api_key=api_key)
+        uploader.upload(
+            local_path=tmp_path,
+            parent_folder_id=girder_cfg['parent_folder_id'],
+            filename=girder_cfg['filename']
+        )
     finally:
-        pass
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            print(f"Removed {tmp_path}.")
 
     print("Dataset generation and upload complete.")
 

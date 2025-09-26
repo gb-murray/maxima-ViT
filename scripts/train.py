@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
+from torchvision.transforms import Resize
 from transformers import ViTModel
 
 # Project Setup
@@ -24,11 +25,12 @@ from src.loss import HuberLoss
 # Data Loading
 class HDF5Dataset(Dataset):
     """PyTorch Dataset for loading data from an HDF5 file."""
-    def __init__(self, hdf5_path: str, group: str):
+    def __init__(self, hdf5_path: str, group: str, image_size: int = 224):
         self.file = h5py.File(hdf5_path, 'r')
         self.group = self.file[group]
         self.images = self.group['images'] #type: ignore
         self.labels = self.group['labels'] #type: ignore
+        self.resize_transform = Resize((image_size, image_size), antialias=True)
 
     def __len__(self):
         return len(self.images) #type: ignore
@@ -36,6 +38,8 @@ class HDF5Dataset(Dataset):
     def __getitem__(self, idx):
         image = self.images[idx] #type: ignore
         image_tensor = torch.from_numpy(image).unsqueeze(0).float()
+        image_tensor = self.resize_transform(image_tensor)
+        image_tensor = image_tensor.repeat(3, 1, 1)
         label_tensor = torch.from_numpy(self.labels[idx]).float() #type: ignore
         return image_tensor, label_tensor
 
@@ -112,8 +116,23 @@ def main(config: dict, checkpoint_path = None):
     # Create Datasets and DataLoaders
     train_dataset = HDF5Dataset(config['data']['hdf5_path'], 'train')
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], 'validation')
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False)
+
+    num_workers = os.cpu_count() // 2 #type: ignore
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True
+        )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+        )
 
     # Instantiate loss and optimizer
     loss_fn = HuberLoss()
@@ -132,7 +151,7 @@ def main(config: dict, checkpoint_path = None):
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            model_path = os.path.join(output_dir, "best_model.pth")
+            model_path = os.path.join(output_dir, config['model']['name'])
             torch.save(model.state_dict(), model_path)
             print(f"New best model saved to {model_path}")
 

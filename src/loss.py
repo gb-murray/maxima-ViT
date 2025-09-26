@@ -13,7 +13,7 @@ class HuberLoss(nn.Module):
         self.scale_factors = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
         
         # Define weights to tune the importance of each parameter
-        self.weights = torch.tensor([1.0, 1.0, 1.0, 1.5, 1.5, 0.5], dtype=torch.float32)
+        self.weights = torch.tensor([1.5, 1.5, 1.5, 1.0, 1.0, 1.0], dtype=torch.float32)
         
         # Initialize the base loss function
         self.huber = nn.HuberLoss(reduction='none') # 'none' to calculate loss per-element
