@@ -117,22 +117,8 @@ def main(config: dict, checkpoint_path = None):
     train_dataset = HDF5Dataset(config['data']['hdf5_path'], 'train')
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], 'validation')
 
-    num_workers = os.cpu_count() // 2 #type: ignore
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config['training']['batch_size'],
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=True
-        )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config['training']['batch_size'],
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True
-        )
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False)
 
     # Instantiate loss and optimizer
     loss_fn = HuberLoss()
