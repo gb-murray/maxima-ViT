@@ -1,0 +1,30 @@
+# Configuration for training the ViT regression model.
+
+paths:
+  # Directory where the model checkpoint will be saved.
+  output_dir: "D:/MaxViT/Models"
+
+data:
+  # Path to the HDF5 file containing the dataset.
+  hdf5_path: "D:/MaxViT/MaxViT_alpha_Al2O3_Eiger2Cdte_1M_v0.3_tuningset.hdf5"
+
+model:
+  # Hugging Face name for the pre-trained Vision Transformer.
+  backbone: "google/vit-base-patch16-224-in21k"
+  # Hidden dimension size of the ViT backbone's output.
+  vit_hidden_dim: 768  # 768 is the standard for ViT-Base.
+  # The number of final regression outputs (dist, poni1, etc.).
+  num_outputs: 6
+  # Name/version of the model.
+  name: "MaxViT_v0.3.pth"
+  # Image resize
+  image_size: 1056
+
+training:
+  freeze_backbone: false
+  # Number of samples to process in each batch.
+  batch_size: 2
+  # Number of full passes through the dataset.
+  epochs: 5
+  # The learning rate for the optimizer.
+  learning_rate: 0.000001
