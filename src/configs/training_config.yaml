@@ -23,6 +23,6 @@ training:
   # Number of samples to process in each batch.
   batch_size: 32
   # Number of full passes through the dataset.
-  epochs: 25
+  epochs: 10
   # The learning rate for the optimizer.
   learning_rate: 0.00001

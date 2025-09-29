@@ -12,7 +12,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from torchvision.transforms import Resize
-from transformers import ViTModel
+from transformers import ViTModel, ViTConfig
 
 # Project Setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,10 +47,40 @@ class HDF5Dataset(Dataset):
         self.file.close()
 
 # Model Creation and Freezing
+# def create_model(config: dict) -> nn.Module:
+#     # Instantiates a new model from a pre-trained backbone
+#     print(f"Creating new model from backbone: {config['model']['backbone']}")
+#     vit_backbone = ViTModel.from_pretrained(config['model']['backbone'], image_size=config['model'].get('image_size', 224))
+#     regression_head = nn.Sequential(
+#         nn.Linear(config['model']['vit_hidden_dim'], 512),
+#         nn.GELU(), nn.Dropout(0.1),
+#         nn.Linear(512, config['model']['num_outputs'])
+#     )
+#     return MaxViTModel(vit_backbone, regression_head)
+
+# def load_model(model_path: str, config: dict) -> nn.Module:
+#     # Loads an existing model 
+#     print(f"Loading existing model from: {model_path}")
+#     model = create_model(config)
+#     model.load_state_dict(torch.load(model_path))
+#     return model
+
 def create_model(config: dict) -> nn.Module:
-    # Instantiates a new model from a pre-trained backbone
-    print(f"Creating new model from backbone: {config['model']['backbone']}")
-    vit_backbone = ViTModel.from_pretrained(config['model']['backbone'])
+    """
+    Instantiates a model with the specified architecture and random weights.
+    """
+    print(f"Creating new model architecture from config...")
+    
+    # 1. Load the configuration of the pretrained model
+    model_config = ViTConfig.from_pretrained(
+        config['model']['backbone'],
+        image_size=config['model'].get('image_size', 224)
+    )
+    
+    # 2. Build the model from the configuration (initializes with random weights)
+    vit_backbone = ViTModel(model_config)
+
+    # 3. Create the regression head
     regression_head = nn.Sequential(
         nn.Linear(config['model']['vit_hidden_dim'], 512),
         nn.GELU(), nn.Dropout(0.1),
@@ -59,10 +89,22 @@ def create_model(config: dict) -> nn.Module:
     return MaxViTModel(vit_backbone, regression_head)
 
 def load_model(model_path: str, config: dict) -> nn.Module:
-    # Loads an existing model 
-    print(f"Loading existing model from: {model_path}")
+    """
+    Loads interpolated weights into a fresh model architecture.
+    """
+    print(f"Loading custom interpolated weights from: {model_path}")
+    
+    # 1. Create the correctly-sized model architecture (with random weights)
     model = create_model(config)
-    model.load_state_dict(torch.load(model_path))
+    
+    # 2. Load the state dictionary from our interpolated file
+    state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+    
+    # 3. Load these weights into the model's ViT backbone
+    # We use strict=False because the checkpoint only contains the backbone
+    # weights, not the randomly initialized regression head.
+    model.vit.load_state_dict(state_dict, strict=False) #type: ignore
+    
     return model
 
 def freeze_backbone(model: nn.Module):
@@ -114,8 +156,10 @@ def main(config: dict, checkpoint_path = None):
         freeze_backbone(model)
 
     # Create Datasets and DataLoaders
-    train_dataset = HDF5Dataset(config['data']['hdf5_path'], 'train')
-    val_dataset = HDF5Dataset(config['data']['hdf5_path'], 'validation')
+    image_size=config['model'].get('image_size', 224)
+
+    train_dataset = HDF5Dataset(config['data']['hdf5_path'], 'train', image_size=image_size)
+    val_dataset = HDF5Dataset(config['data']['hdf5_path'], 'validation', image_size=image_size)
 
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False)

@@ -2,7 +2,7 @@
 
 paths:
   # The temporary directory for holding the file before upload
-  tmp_dir: "D:/temp"
+  tmp_dir: "D:/MaxViT"
 
 calibrant: 'alpha_Al2O3' # Calibrant material alias string.
   
@@ -43,7 +43,7 @@ simulation_ranges:
 
 generation:
   # Number of images to generate.
-  num_images: 10000
+  num_images: 500
   # Division of dataset into [train, validation, test] subsets
   split_ratio: [0.8, 0.1, 0.1]
   
@@ -51,4 +51,4 @@ girder:
   # Parameters for file upload
   api_url: "https://data.htmdec.org/api/v1"
   parent_folder_id: "68d3f952ecbafc2edd6123a6"
-  filename: "MaxViT_alpha_Al2O3_Eiger2Cdte_1M_v1_dataset.hdf5"
+  filename: "MaxViT_alpha_Al2O3_Eiger2Cdte_1M_v0.3_dataset.hdf5"
