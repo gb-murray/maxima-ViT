@@ -42,9 +42,9 @@ class GirderUploader:
 def sample_geometry(config: dict) -> dict:
     """Samples a random geometry dictionary from ranges defined in the config."""
     return {
-        "dist": np.random.normal(*config['geometry_ranges']['dist']),
-        "poni1": np.random.normal(*config['geometry_ranges']['poni1']),
-        "poni2": np.random.normal(*config['geometry_ranges']['poni2']),
+        "dist": np.random.uniform(*config['geometry_ranges']['dist']),
+        "poni1": np.random.uniform(*config['geometry_ranges']['poni1']),
+        "poni2": np.random.uniform(*config['geometry_ranges']['poni2']),
         "rot1": np.random.uniform(*config['geometry_ranges']['rot1']),
         "rot2": np.random.uniform(*config['geometry_ranges']['rot2']),
         "rot3": np.random.uniform(*config['geometry_ranges']['rot3']),

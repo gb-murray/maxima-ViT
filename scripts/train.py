@@ -46,41 +46,22 @@ class HDF5Dataset(Dataset):
     def close(self):
         self.file.close()
 
-# Model Creation and Freezing
-# def create_model(config: dict) -> nn.Module:
-#     # Instantiates a new model from a pre-trained backbone
-#     print(f"Creating new model from backbone: {config['model']['backbone']}")
-#     vit_backbone = ViTModel.from_pretrained(config['model']['backbone'], image_size=config['model'].get('image_size', 224))
-#     regression_head = nn.Sequential(
-#         nn.Linear(config['model']['vit_hidden_dim'], 512),
-#         nn.GELU(), nn.Dropout(0.1),
-#         nn.Linear(512, config['model']['num_outputs'])
-#     )
-#     return MaxViTModel(vit_backbone, regression_head)
-
-# def load_model(model_path: str, config: dict) -> nn.Module:
-#     # Loads an existing model 
-#     print(f"Loading existing model from: {model_path}")
-#     model = create_model(config)
-#     model.load_state_dict(torch.load(model_path))
-#     return model
-
 def create_model(config: dict) -> nn.Module:
     """
     Instantiates a model with the specified architecture and random weights.
     """
     print(f"Creating new model architecture from config...")
     
-    # 1. Load the configuration of the pretrained model
+    # Load the configuration of the pretrained model
     model_config = ViTConfig.from_pretrained(
         config['model']['backbone'],
         image_size=config['model'].get('image_size', 224)
     )
     
-    # 2. Build the model from the configuration (initializes with random weights)
+    # Build the model from the configuration (initializes with random weights)
     vit_backbone = ViTModel(model_config)
 
-    # 3. Create the regression head
+    # Create the regression head
     regression_head = nn.Sequential(
         nn.Linear(config['model']['vit_hidden_dim'], 512),
         nn.GELU(), nn.Dropout(0.1),
@@ -94,15 +75,13 @@ def load_model(model_path: str, config: dict) -> nn.Module:
     """
     print(f"Loading custom interpolated weights from: {model_path}")
     
-    # 1. Create the correctly-sized model architecture (with random weights)
+    # Create the correctly-sized model architecture
     model = create_model(config)
     
-    # 2. Load the state dictionary from our interpolated file
+    # Load the state dictionary from our interpolated file
     state_dict = torch.load(model_path, map_location=torch.device('cpu'))
     
-    # 3. Load these weights into the model's ViT backbone
-    # We use strict=False because the checkpoint only contains the backbone
-    # weights, not the randomly initialized regression head.
+    # Load these weights into the model's ViT backbone
     model.vit.load_state_dict(state_dict, strict=False) #type: ignore
     
     return model
