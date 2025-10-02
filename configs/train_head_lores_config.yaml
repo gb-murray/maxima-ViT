@@ -1,4 +1,4 @@
-# Configuration for training the ViT regression model.
+# Configuration for training the ViT regression model using k-fold cross validation.
 
 paths:
   # Directory where the model checkpoint will be saved.
