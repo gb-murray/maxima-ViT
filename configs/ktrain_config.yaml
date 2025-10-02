@@ -1,0 +1,24 @@
+# Configuration for training the ViT regression model using k-fold cross validation.
+
+paths:
+  # Directory where the model checkpoint will be saved.
+  output_dir: "../models/"
+
+data:
+  # Path to the HDF5 file containing the dataset.
+  hdf5_path: "../datasets/MAXIMA-ViT_alpha_Al2O3_Eiger2Cdte_1M_k_dataset.hdf5"
+
+model:
+  # Hugging Face name for the pre-trained Vision Transformer.
+  backbone: "google/vit-base-patch16-224-in21k"
+  vit_hidden_dim: 768 
+  num_outputs: 6
+  # Name/version of the model.
+  name: "MaxViT_v2.1k.pth"
+
+training:
+  freeze_backbone: false
+  batch_size: 32
+  epochs: 25
+  learning_rate: 0.00001
+  k_folds: 10

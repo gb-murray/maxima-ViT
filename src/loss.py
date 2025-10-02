@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-class HuberLoss(nn.Module):
+class Loss(nn.Module):
     """
     A custom loss function that calculates a weighted, normalized Huber loss for the 6D geometry. 
     """
@@ -13,21 +13,14 @@ class HuberLoss(nn.Module):
         self.scale_factors = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
         
         # Define weights to tune the importance of each parameter
-        self.weights = torch.tensor([1.5, 1.5, 1.5, 1.0, 1.0, 1.0], dtype=torch.float32)
+        self.weights = torch.tensor([1.0, 1.5, 1.5, 1.5, 1.5, 1.0], dtype=torch.float32)
         
         # Initialize the base loss function
-        self.huber = nn.HuberLoss(reduction='none') # 'none' to calculate loss per-element
+        self.huber = nn.HuberLoss(reduction='none')
 
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         """
         Calculates the final loss value.
-
-        Args:
-            y_pred (torch.Tensor): The model's predictions. Shape: (batch_size, 6)
-            y_true (torch.Tensor): The ground-truth labels. Shape: (batch_size, 6)
-
-        Returns:
-            torch.Tensor: A single scalar loss value for the batch.
         """
         device = y_pred.device
         self.scale_factors = self.scale_factors.to(device)

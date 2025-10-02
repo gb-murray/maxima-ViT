@@ -1,0 +1,32 @@
+### Configuration for k-fold dataset generation ###
+
+paths:
+  # The full path, including filename, for the output HDF5 dataset.
+  output_path: "../datasets/MAXIMA-ViT_alpha_Al2O3_Eiger2Cdte_1M_k_dataset.hdf5"
+
+calibrant: 'alpha_Al2O3'
+detector: 'Eiger2Cdte_1M'
+wavelength: 0.5121261413149675e-10
+
+geometry_ranges:
+  dist: [0.04, 0.30]
+  poni1: [0.03, 0.05]
+  poni2: [0.03, 0.05]
+  rot1: [-0.1, 0.1]
+  rot2: [-0.1, 0.1]
+  rot3: [-0.1, 0.1]
+
+simulation_ranges:
+  snr: [1.0, 20.0]
+  eta: [0.0, 1.0]
+  w_sharp: [0.000001, 0.000005]
+  broad_factor: [10.0, 50.0]
+  imin: [0.1, 0.25]
+  imax: [1.0, 1.0]
+
+generation:
+  # Total number of images to generate.
+  num_images: 10000
+  # Fraction of the dataset to be held out for the final test set.
+  # The rest (1.0 - test_split_ratio) will go into the 'training_pool'.
+  test_split_ratio: 0.1
