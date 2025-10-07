@@ -7,7 +7,7 @@ def inspect_checkpoint(checkpoint_path: str):
         print(f"--- Inspecting: {checkpoint_path} ---")
         state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         
-        # The key for the positional embeddings in your model
+        # The key for the positional embeddings in the model
         embedding_key = 'vit.embeddings.position_embeddings'
         
         if embedding_key in state_dict:
