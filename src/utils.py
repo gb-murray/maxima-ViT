@@ -5,7 +5,7 @@ from pyFAI.detectors import Detector, detector_factory
 import torch
 import torch.nn as nn
 from transformers import ViTModel, ViTConfig
-from model import MaxViTModel
+from .model import MaxViTModel
 from tqdm import tqdm
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
