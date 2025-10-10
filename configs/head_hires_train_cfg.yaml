@@ -19,7 +19,7 @@ model:
   name: "MaxViT_v1.0_sim.pth"
 
 training:
-  freeze_backbone: false
-  batch_size: 4
-  epochs: 25
-  learning_rate: 0.00001
+  freeze_backbone: true
+  batch_size: 8
+  epochs: 10
+  learning_rate: 0.0001
