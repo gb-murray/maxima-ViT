@@ -16,10 +16,10 @@ model:
   vit_hidden_dim: 768 
   num_outputs: 6
   image_size: 1056
-  name: "MaxViT_v1.0_sim.pth"
+  name: "MaxViT_v1.1f.pth"
 
 training:
   freeze_backbone: false
   batch_size: 4
   epochs: 25
-  learning_rate: 0.00001
+  learning_rate: 0.000001
