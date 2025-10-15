@@ -1,5 +1,3 @@
-# scripts/simulate_data.py
-
 import os
 import sys
 import yaml
@@ -42,7 +40,6 @@ def generate_sample(config: dict):
     label = np.array(list(geometry_params.values()), dtype=np.float32)
     return image, label
 
-# Orchestration Logic
 def _populate_group(h5_group, num_samples: int, config: dict, desc: str):
     """Helper to run the simulation and fill an HDF5 group."""
     if num_samples <= 0:
@@ -65,10 +62,9 @@ def generate_dataset(config: dict):
     and save it directly to a local HDF5 file.
     """
     output_path = config['paths']['output_path']
-    # Ensure the output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
-    # Calculate split sizes for training_pool and test set
+    
     n_total = config['generation']['num_images']
     test_ratio = config['generation']['test_split_ratio']
     n_test = int(n_total * test_ratio)
@@ -77,7 +73,6 @@ def generate_dataset(config: dict):
     print(f"Generating dataset at: {output_path}")
     print(f"Total samples: {n_total} (Training Pool: {n_train_pool}, Test: {n_test})")
 
-    # Create the HDF5 file with the new group structure
     with h5py.File(output_path, "w") as hf:
         train_pool_group = hf.create_group('training_pool')
         test_group = hf.create_group('test')
