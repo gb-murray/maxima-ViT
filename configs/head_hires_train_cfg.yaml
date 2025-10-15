@@ -2,7 +2,7 @@
 
 paths:
   # Directory where the model checkpoint will be saved.
-  output_dir: "../models/v1.1"
+  output_dir: "../models/v1.2"
 
 data:
   # Path to the HDF5 file containing the dataset.
@@ -16,10 +16,10 @@ model:
   vit_hidden_dim: 768 
   num_outputs: 6
   image_size: 1056
-  name: "MaxViT_v1.0_sim.pth"
+  name: "MaxViT_v1.2h.pth"
 
 training:
   freeze_backbone: true
   batch_size: 8
-  epochs: 10
+  epochs: 20
   learning_rate: 0.0001

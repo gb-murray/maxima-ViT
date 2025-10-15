@@ -1,4 +1,4 @@
-# Trains a ViT regression model
+# Trains a ViT regression model from a given config.yaml
 
 import os
 import sys
@@ -8,7 +8,6 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-# Project Setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
@@ -40,8 +39,24 @@ def main(config: dict, checkpoint_path = None):
     train_dataset = HDF5Dataset(config['data']['hdf5_path'], train_group, image_size=image_size)
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], val_group, image_size=image_size)
 
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False)
+    num_workers = os.cpu_count() // 2 #type: ignore
+    print(f"Using {num_workers} dataloading subprocesses.")
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True 
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+)
 
     # Instantiate loss and optimizer
     loss_fn = Loss()
@@ -64,8 +79,6 @@ def main(config: dict, checkpoint_path = None):
             torch.save(model.state_dict(), model_path)
             print(f"New best model saved to {model_path}")
 
-    train_dataset.close()
-    val_dataset.close()
     print("\nTraining complete.")
 
 if __name__ == '__main__':

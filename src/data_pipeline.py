@@ -3,13 +3,12 @@
 import numpy as np
 from pyFAI.calibrant import Calibrant
 from pyFAI.detectors import Detector
-from pyFAI.geometry import Geometry
 from pyFAI.integrator.azimuthal import AzimuthalIntegrator
 from typing import cast
 import torch
 from torch.utils.data import Dataset
 import h5py
-from torchvision.transforms import Resize
+from torchvision import transforms
 
 class CalibrantSim:
     """
@@ -97,24 +96,41 @@ class CalibrantSim:
         return noisy_image.astype(np.float32)
     
 class HDF5Dataset(Dataset):
-    """PyTorch Dataset for loading data from an HDF5 file."""
+    """
+    Handles large training datasets in an HDF5 format.
+    """
     def __init__(self, hdf5_path: str, group: str, image_size: int = 224):
-        self.file = h5py.File(hdf5_path, 'r')
-        self.group = self.file[group]
-        self.images = self.group['images'] #type: ignore
-        self.labels = self.group['labels'] #type: ignore
-        self.resize_transform = Resize((image_size, image_size), antialias=True)
+        self.hdf5_path = hdf5_path  
+        self.group = group
+        self.image_size = image_size
+        self.file = None 
 
     def __len__(self):
-        return len(self.images) #type: ignore
+        with h5py.File(self.hdf5_path, 'r') as f:
+            return len(f[self.group]['images']) #type: ignore
 
     def __getitem__(self, idx):
-        image = self.images[idx] #type: ignore
-        image_tensor = torch.from_numpy(image).unsqueeze(0).float()
-        image_tensor = self.resize_transform(image_tensor)
-        image_tensor = image_tensor.repeat(3, 1, 1)
-        label_tensor = torch.from_numpy(self.labels[idx]).float() #type: ignore
-        return image_tensor, label_tensor
+        if self.file is None:
+            self.file = h5py.File(self.hdf5_path, 'r')
 
-    def close(self):
-        self.file.close()
+        images = self.file[self.group]['images'] #type: ignore
+        labels = self.file[self.group]['labels'] #type: ignore
+        
+        image = images[idx] #type: ignore
+        image_tensor = torch.from_numpy(image).unsqueeze(0).float()
+        
+        _ , h, w = image_tensor.shape
+        max_dim = max(h, w)
+        pad_h = (max_dim - h) // 2
+        pad_w = (max_dim - w) // 2
+        
+        padding_transform = transforms.Pad(padding=(pad_w, pad_h))
+        padded_tensor = padding_transform(image_tensor)
+
+        resize_transform = transforms.Resize((self.image_size, self.image_size), antialias=True)
+        final_tensor = resize_transform(padded_tensor)
+
+        final_tensor = final_tensor.repeat(3, 1, 1)
+        label_tensor = torch.from_numpy(labels[idx]).float() #type: ignore
+        
+        return final_tensor, label_tensor
