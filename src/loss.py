@@ -10,10 +10,10 @@ class Loss(nn.Module):
     def __init__(self):
         super().__init__()
         # [dist, poni1, poni2, rot1, rot2, rot3]
-        self.scale_factors = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
+        self.scale_factors = torch.tensor([0.30, 0.06, 0.06, 0.25, 0.25, 0.25], dtype=torch.float32)
         
         # Define weights to tune the importance of each parameter
-        self.weights = torch.tensor([1.0, 1.5, 1.5, 1.5, 1.5, 1.0], dtype=torch.float32)
+        self.weights = torch.tensor([2.5, 10.0, 10.0, 5.0, 5.0, 1.0], dtype=torch.float32)
         
         # Initialize the base loss function
         self.huber = nn.HuberLoss(reduction='none')

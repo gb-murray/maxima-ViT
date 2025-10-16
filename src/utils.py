@@ -49,7 +49,7 @@ def load_model(model_path: str, config: dict) -> nn.Module:
     """
     Loads interpolated weights into a fresh model architecture.
     """
-    print(f"Loading custom interpolated weights from: {model_path}")
+    print(f"Loading weights from: {model_path}")
     
     # Create the correctly-sized model architecture
     model = create_model(config)

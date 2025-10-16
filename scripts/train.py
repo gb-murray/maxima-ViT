@@ -7,6 +7,7 @@ import yaml
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
+from torch.multiprocessing import set_start_method
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
@@ -40,7 +41,7 @@ def main(config: dict, checkpoint_path = None):
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], val_group, image_size=image_size)
 
     num_workers = os.cpu_count() // 2 #type: ignore
-    print(f"Using {num_workers} dataloading subprocesses.")
+    print(f"Using {num_workers} subprocesses.")
 
     train_loader = DataLoader(
         train_dataset,
@@ -77,11 +78,17 @@ def main(config: dict, checkpoint_path = None):
             best_val_loss = val_loss
             model_path = os.path.join(output_dir, config['model']['name'])
             torch.save(model.state_dict(), model_path)
-            print(f"New best model saved to {model_path}")
+            print(f"Model saved to {model_path}")
 
     print("\nTraining complete.")
 
 if __name__ == '__main__':
+
+    try:
+        set_start_method('spawn')
+    except RuntimeError:
+        pass
+
     parser = argparse.ArgumentParser(description="Train a ViT model.")
     parser.add_argument("config", help="Path to the YAML configuration file.")
     parser.add_argument("--load-checkpoint", help="Path to a model checkpoint to continue training.", default=None)
