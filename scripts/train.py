@@ -48,7 +48,8 @@ def main(config: dict, checkpoint_path = None):
         batch_size=config['training']['batch_size'],
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True 
+        pin_memory=True,
+        persistent_workers=True
     )
 
     val_loader = DataLoader(
@@ -56,7 +57,8 @@ def main(config: dict, checkpoint_path = None):
         batch_size=config['training']['batch_size'],
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True
 )
 
     # Instantiate loss and optimizer
