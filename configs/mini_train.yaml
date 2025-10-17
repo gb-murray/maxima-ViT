@@ -1,0 +1,25 @@
+# Configuration for training the ViT regression model on high-resolution images
+
+paths:
+  # Directory where the model checkpoint will be saved.
+  output_dir: "../models/v1.3"
+
+data:
+  # Path to the HDF5 file containing the dataset.
+  hdf5_path: "../datasets/MAXIMA-ViT_mini_dataset.hdf5"
+  train_group: "training_pool"
+  val_group: "test"
+
+model:
+  # Hugging Face name for the pre-trained Vision Transformer.
+  backbone: "google/vit-base-patch16-224-in21k"
+  vit_hidden_dim: 768 
+  num_outputs: 6
+  image_size: 1056
+  name: "MaxViT_v1.3m.pth"
+
+training:
+  freeze_backbone: true
+  batch_size: 64
+  epochs: 10
+  learning_rate: 0.0001
