@@ -40,7 +40,8 @@ def main(config: dict, checkpoint_path = None):
     train_dataset = HDF5Dataset(config['data']['hdf5_path'], train_group, image_size=image_size)
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], val_group, image_size=image_size)
 
-    num_workers = os.cpu_count() // 2 #type: ignore
+    # num_workers = os.cpu_count() // 2 #type: ignore
+    num_workers = 8
     print(f"Using {num_workers} subprocesses.")
 
     train_loader = DataLoader(

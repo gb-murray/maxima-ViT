@@ -1,4 +1,4 @@
-# Configuration for training the ViT regression model on high-resolution images
+# Configuration for training the mini test ViT regression model on high-resolution images
 
 paths:
   # Directory where the model checkpoint will be saved.
