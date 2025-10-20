@@ -6,7 +6,7 @@ paths:
 
 data:
   # Path to the HDF5 file containing the dataset.
-  hdf5_path: "../datasets/MAXIMA-ViT_alpha_Al2O3_Eiger2Cdte_1M_25k_dataset.hdf5"
+  hdf5_path: "../datasets/MAXIMA-ViT_25k_dataset.hdf5"
   train_group: "training_pool"
   val_group: "test"
 
