@@ -7,6 +7,7 @@ import torch.nn as nn
 from transformers import ViTModel, ViTConfig
 from .model import MaxViTModel
 from tqdm import tqdm
+from torch.amp.autocast_mode import autocast
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
 
@@ -69,17 +70,24 @@ def freeze_backbone(model: nn.Module):
         param.requires_grad = False
 
 # Training and Validation Loops
-def train_one_epoch(model, dataloader, optimizer, loss_fn, device):
+def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler):
     # Trains a single epoch
     model.train()
     total_loss = 0
+
     for images, labels in tqdm(dataloader, desc="Training"):
         images, labels = images.to(device), labels.to(device)
+
         optimizer.zero_grad()
-        predictions = model(images)
-        loss = loss_fn(predictions, labels)
-        loss.backward()
-        optimizer.step()
+
+        with autocast(device_type=device.type):
+            predictions = model(images)
+            loss = loss_fn(predictions, labels)
+        
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
         total_loss += loss.item()
     return total_loss / len(dataloader)
 

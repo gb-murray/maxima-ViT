@@ -22,4 +22,4 @@ training:
   freeze_backbone: false
   batch_size: 32
   epochs: 25
-  learning_rate: 0.000001
+  learning_rate: 0.0000005
