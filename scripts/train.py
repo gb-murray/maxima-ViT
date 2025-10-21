@@ -6,10 +6,10 @@ import argparse
 import yaml
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from torch.optim import AdamW
 from torch.multiprocessing import set_start_method
 from torch.amp.grad_scaler import GradScaler
-from torch.amp.autocast_mode import autocast
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
@@ -34,6 +34,10 @@ def main(config: dict, checkpoint_path = None):
     # model = torch.compile(model)
     # print("Model compiled.")
 
+    log_dir = os.path.join(config['paths']['output_dir'], 'logs')
+    writer = SummaryWriter(log_dir=log_dir)
+    print(f"TensorBoard logs will be saved to: {log_dir}")
+
     # Conditionally freeze backbone
     if config['training'].get('freeze_backbone', False):
         freeze_backbone(model) #type: ignore
@@ -46,7 +50,8 @@ def main(config: dict, checkpoint_path = None):
     train_dataset = HDF5Dataset(config['data']['hdf5_path'], train_group, image_size=image_size)
     val_dataset = HDF5Dataset(config['data']['hdf5_path'], val_group, image_size=image_size)
 
-    num_workers = os.cpu_count() // 2 #type: ignore
+    # num_workers = os.cpu_count() // 2 #type: ignore
+    num_workers = 8
     print(f"Using {num_workers} subprocesses.")
 
     train_loader = DataLoader(
@@ -80,8 +85,14 @@ def main(config: dict, checkpoint_path = None):
     # Main training loop
     for epoch in range(config['training']['epochs']):
         print(f"\n--- Epoch {epoch + 1}/{config['training']['epochs']} ---")
-        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, scaler)
-        val_loss = validate(model, val_loader, loss_fn, device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, scaler, writer, epoch)
+        writer.add_scalar('Loss/train', train_loss, epoch)
+
+        val_loss = validate(model, val_loader, loss_fn, device, writer, epoch)
+        writer.add_scalar('Loss/validation', val_loss, epoch)
+
+        writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], epoch)
+
         print(f"Epoch {epoch + 1}: Train Loss = {train_loss:.6f}, Val Loss = {val_loss:.6f}")
 
         if val_loss < best_val_loss:
@@ -90,6 +101,7 @@ def main(config: dict, checkpoint_path = None):
             torch.save(model.state_dict(), model_path)
             print(f"Model saved to {model_path}")
 
+    writer.close()
     print("\nTraining complete.")
 
 if __name__ == '__main__':

@@ -70,7 +70,7 @@ def freeze_backbone(model: nn.Module):
         param.requires_grad = False
 
 # Training and Validation Loops
-def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler):
+def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, writer, epoch):
     # Trains a single epoch
     model.train()
     total_loss = 0
@@ -91,7 +91,7 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler):
         total_loss += loss.item()
     return total_loss / len(dataloader)
 
-def validate(model, dataloader, loss_fn, device):
+def validate(model, dataloader, loss_fn, device, writer, epoch):
     # Validates the model
     model.eval()
     total_loss = 0
