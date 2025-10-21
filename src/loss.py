@@ -15,7 +15,6 @@ class Loss(nn.Module):
         # Define weights to tune the importance of each parameter
         self.weights = torch.tensor([1.0, 2.0, 2.0, 1.5, 1.5, 1.0], dtype=torch.float32)
         
-        # Initialize the base loss function
         self.huber = nn.HuberLoss(reduction='none')
 
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
@@ -26,18 +25,13 @@ class Loss(nn.Module):
         self.scale_factors = self.scale_factors.to(device)
         self.weights = self.weights.to(device)
 
-        # Normalize both prediction and ground truth by the scale factors
         y_pred_norm = y_pred / self.scale_factors
         y_true_norm = y_true / self.scale_factors
 
-        # Calculate the per-element Huber loss on the normalized values
         per_element_loss = self.huber(y_pred_norm, y_true_norm)
         
-        # Apply the weights
         weighted_loss_components = per_element_loss * self.weights
         
-        # Sum the weighted losses for each sample in the batch
         loss_per_sample = torch.sum(weighted_loss_components, dim=1)
         
-        # Return the mean loss across the entire batch
         return torch.mean(loss_per_sample)

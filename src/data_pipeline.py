@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import Dataset
 import h5py
 from torchvision import transforms
+from src.utils import image_to_tensor
 
 class CalibrantSim:
     """
@@ -117,20 +118,8 @@ class HDF5Dataset(Dataset):
         labels = self.file[self.group]['labels'] #type: ignore
         
         image = images[idx] #type: ignore
-        image_tensor = torch.from_numpy(image).unsqueeze(0).float()
-        
-        _ , h, w = image_tensor.shape
-        max_dim = max(h, w)
-        pad_h = (max_dim - h) // 2
-        pad_w = (max_dim - w) // 2
-        
-        padding_transform = transforms.Pad(padding=(pad_w, pad_h))
-        padded_tensor = padding_transform(image_tensor)
 
-        resize_transform = transforms.Resize((self.image_size, self.image_size), antialias=True)
-        final_tensor = resize_transform(padded_tensor)
-
-        final_tensor = final_tensor.repeat(3, 1, 1)
+        final_tensor = image_to_tensor(image, self.image_size) #type:ignore
         label_tensor = torch.from_numpy(labels[idx]).float() #type: ignore
         
         return final_tensor, label_tensor

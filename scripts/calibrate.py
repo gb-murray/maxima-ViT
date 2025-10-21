@@ -1,5 +1,5 @@
 # Uses a trained Maxima-ViT model to predict the 6D geometry of a diffraction pattern.
-# NOT intended for high-throughput inferences
+# NOT intended for high-throughput inferences, just one-shots
 
 import os
 import sys
@@ -7,38 +7,30 @@ import argparse
 import yaml
 import fabio
 import numpy as np
-
 import torch
-import torch.nn as nn
 from torchvision.transforms import Resize
 
-# Project Setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
 
-from src.model import MaxViTModel
-from scripts.train import create_model
-
-# Helpers
+from src.utils import create_model, image_to_tensor
 
 def preprocess_image(image_path: str, image_size: int, device: torch.device) -> torch.Tensor:
     """
-    Loads and preprocesses a single image to be model-ready.
-    This must match the preprocessing used during training exactly.
+    Loads and preprocesses a single 2D diffraction pattern.
     """
     print(f"Loading image: {image_path}")
     
-    img = fabio.open(image_path).data.astype(np.float32)
-    tensor = torch.from_numpy(img).unsqueeze(0).unsqueeze(0)
-    resize_transform = Resize((image_size, image_size), antialias=True)
-    tensor = resize_transform(tensor)
-    tensor = tensor.repeat(1, 3, 1, 1)
-    
+    image = fabio.open(image_path).data.astype(np.float32)
+    tensor = image_to_tensor(image, image_size)
+
     return tensor.to(device)
 
 def save_poni_file(output_path: str, params: np.ndarray, config: dict):
-    """Saves the predicted geometry parameters to a .poni file."""
+    """
+    Saves the predicted geometry parameters to a .poni file.
+    """
     param_names = ["dist", "poni1", "poni2", "rot1", "rot2", "rot3"]
     
     # Need to add detector and wavelength info
@@ -50,12 +42,12 @@ def save_poni_file(output_path: str, params: np.ndarray, config: dict):
         for name, value in zip(param_names, params):
             f.write(f"{name.capitalize()}: {value}\n")
             
-    print(f"Successfully saved calibration to: {output_path}")
-
-# Main Execution
+    print(f"Saved calibration to: {output_path}")
 
 def main():
-    """Main function to run the calibration."""
+    """
+    Main function to run the calibration.
+    """
     parser = argparse.ArgumentParser(description="Calibrate an XRD image using a trained Max-ViT model.")
     parser.add_argument("--image", required=True, help="Path to the input 2D XRD image file.")
     parser.add_argument("--model-path", required=True, help="Path to the trained model checkpoint (.pth file).")
@@ -66,9 +58,8 @@ def main():
     # Load configuration
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
-    config['model_path'] = args.model_path # Store for header
+    config['model_path'] = args.model_path # store for header
 
-    # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -106,7 +97,7 @@ def main():
     for name, value in zip(param_names, predicted_params):
         print(f"{name:<20}: {value:.6f}")
 
-    # Save output file if requested
+    # Save output file
     if args.output:
         save_poni_file(args.output, predicted_params, config)
 

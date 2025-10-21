@@ -3,11 +3,7 @@ import torch.nn.functional as F
 import argparse
 import yaml
 
-def interpolate_pos_embeddings(
-    config_path: str,
-    model_path: str,
-    output_path: str
-):
+def interpolate_pos_embeddings(config_path: str, model_path: str, output_path: str):
     """
     Loads a trained ViT state_dict, interpolates its positional embeddings to a new
     resolution specified in a config file, and saves the new state_dict.
@@ -18,9 +14,10 @@ def interpolate_pos_embeddings(
     
     image_size = config['model']['image_size']
     patch_size = config['model'].get('patch_size', 16) 
-    target_image_size = (image_size, image_size) # Ensure a square target
+    target_image_size = (image_size, image_size)
 
-    print(f"Loading original low-resolution model from: {model_path}")
+    # Load the existing model
+    print(f"Loading model weights from {model_path}.")
     low_res_state_dict = torch.load(model_path, map_location=torch.device('cpu'))
 
     pos_embeddings_tensor = low_res_state_dict['vit.embeddings.position_embeddings']
@@ -31,8 +28,9 @@ def interpolate_pos_embeddings(
     new_grid_size = (target_image_size[0] // patch_size, target_image_size[1] // patch_size)
     
     print(f"Original patch grid size: {original_grid_size}x{original_grid_size}")
-    print(f"New target patch grid size from config: {new_grid_size[0]}x{new_grid_size[1]}")
+    print(f"New patch grid size: {new_grid_size[0]}x{new_grid_size[1]}")
 
+    # Interpolate positional embeddings
     patch_embeddings_2d = patch_embeddings.view(1, original_grid_size, original_grid_size, -1).permute(0, 3, 1, 2)
     
     interpolated_embeddings_2d = F.interpolate(
@@ -44,9 +42,9 @@ def interpolate_pos_embeddings(
     
     low_res_state_dict['vit.embeddings.position_embeddings'] = new_pos_embeddings
 
-    print(f"Saving new high-resolution state dictionary to: {output_path}")
+    # Save the new state dict
+    print(f"Saving new state dictionary to: {output_path}")
     torch.save(low_res_state_dict, output_path)
-    print("Done.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Interpolate ViT positional embeddings for a new resolution.")

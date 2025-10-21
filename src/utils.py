@@ -8,6 +8,8 @@ from transformers import ViTModel, ViTConfig
 from .model import MaxViTModel
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
+from torchvision import transforms
+import numpy as np
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
 
@@ -48,30 +50,28 @@ def create_model(config: dict) -> nn.Module:
 
 def load_model(model_path: str, config: dict) -> nn.Module:
     """
-    Loads interpolated weights into a fresh model architecture.
+    Loads pre-trained weights into a fresh model architecture.
     """
     print(f"Loading weights from: {model_path}")
     
-    # Create the correctly-sized model architecture
     model = create_model(config)
-    
-    # Load the state dictionary from our interpolated file
     state_dict = torch.load(model_path, map_location=torch.device('cpu'))
-    
-    # Load these weights into the model's ViT backbone
     model.vit.load_state_dict(state_dict, strict=False) #type: ignore
     
     return model
 
 def freeze_backbone(model: nn.Module):
-    """Freezes the parameters of the ViT backbone."""
+    """
+    Freezes the parameters of the ViT backbone.
+    """
     print("Freezing backbone weights. Only the regression head will be trained.")
     for param in model.vit.parameters(): #type: ignore
         param.requires_grad = False
 
-# Training and Validation Loops
 def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, writer, epoch):
-    # Trains a single epoch
+    """
+    Worker function to train model weights for a single epoch.
+    """
     model.train()
     total_loss = 0
 
@@ -92,7 +92,9 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, write
     return total_loss / len(dataloader)
 
 def validate(model, dataloader, loss_fn, device, writer, epoch):
-    # Validates the model
+    """
+    Returns validation loss for the current model/epoch.
+    """
     model.eval()
     total_loss = 0
     with torch.no_grad():
@@ -102,3 +104,25 @@ def validate(model, dataloader, loss_fn, device, writer, epoch):
             loss = loss_fn(predictions, labels)
             total_loss += loss.item()
     return total_loss / len(dataloader)
+
+def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
+    """
+    Converts a 2D diffraction pattern from an array to a tensor.
+    The image is padded and resampled to fit model specifications.
+    """
+    image_tensor = torch.from_numpy(image).unsqueeze(0).float()
+        
+    _ , h, w = image_tensor.shape
+    max_dim = max(h, w)
+    pad_h = (max_dim - h) // 2
+    pad_w = (max_dim - w) // 2
+    
+    padding_transform = transforms.Pad(padding=(pad_w, pad_h))
+    padded_tensor = padding_transform(image_tensor)
+
+    resize_transform = transforms.Resize((image_size, image_size), antialias=True)
+    final_tensor = resize_transform(padded_tensor)
+
+    final_tensor = final_tensor.repeat(3, 1, 1)
+
+    return final_tensor

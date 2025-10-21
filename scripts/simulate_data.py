@@ -7,7 +7,6 @@ import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
-# Project Setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
@@ -17,7 +16,9 @@ from src.utils import get_calibrant, get_detector
 
 # Data Generation
 def sample_geometry(config: dict) -> dict:
-    """Samples a random geometry dictionary from ranges defined in the config."""
+    """
+    Samples a random geometry dictionary from ranges defined in the config.
+    """
     return {
         "dist": np.random.uniform(*config['geometry_ranges']['dist']),
         "poni1": np.random.uniform(*config['geometry_ranges']['poni1']),
@@ -28,7 +29,9 @@ def sample_geometry(config: dict) -> dict:
     }
 
 def generate_sample(config: dict):
-    """Worker function to generate a single image and its label."""
+    """
+    Worker function to generate a single image and its label.
+    """
     calibrant = get_calibrant(config['calibrant'], config['wavelength'])
     detector = get_detector(config['detector'])
     geometry_params = sample_geometry(config)
@@ -41,7 +44,9 @@ def generate_sample(config: dict):
     return image, label
 
 def _populate_group(h5_group, num_samples: int, config: dict, desc: str):
-    """Helper to run the simulation and fill an HDF5 group."""
+    """
+    Helper to run the simulation and fill an HDF5 group.
+    """
     if num_samples <= 0:
         return
         
@@ -58,12 +63,10 @@ def _populate_group(h5_group, num_samples: int, config: dict, desc: str):
 
 def generate_dataset(config: dict):
     """
-    Main function to generate a dataset for k-fold cross-validation
-    and save it directly to a local HDF5 file.
+    Main function to generate a dataset and save it to a HDF5 file.
     """
     output_path = config['paths']['output_path']
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
     
     n_total = config['generation']['num_images']
     test_ratio = config['generation']['test_split_ratio']
