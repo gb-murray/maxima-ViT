@@ -30,9 +30,9 @@ def main(config: dict, checkpoint_path = None):
     else:
         model = create_model(config).to(device)
 
-    print("Compiling model...")
-    model = torch.compile(model)
-    print("Model compiled.")
+    # print("Compiling model...")
+    # model = torch.compile(model)
+    # print("Model compiled.")
 
     # Conditionally freeze backbone
     if config['training'].get('freeze_backbone', False):
