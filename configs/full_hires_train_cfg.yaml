@@ -21,5 +21,6 @@ model:
 training:
   freeze_backbone: false
   batch_size: 32
-  epochs: 25
+  epochs: 100
   learning_rate: 0.0000005
+  patience: 10

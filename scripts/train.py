@@ -82,6 +82,9 @@ def main(config: dict, checkpoint_path = None):
 
     scaler = GradScaler(device=device.type) 
 
+    patience = config['training'].get('patience', float('inf'))
+    num_overfit_epochs = 0
+
     # Main training loop
     for epoch in range(config['training']['epochs']):
         print(f"\n--- Epoch {epoch + 1}/{config['training']['epochs']} ---")
@@ -97,9 +100,16 @@ def main(config: dict, checkpoint_path = None):
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            num_overfit_epochs = 0
             model_path = os.path.join(output_dir, config['model']['name'])
             torch.save(model.state_dict(), model_path)
             print(f"Model saved to {model_path}")
+        else:
+            num_overfit_epochs += 1
+
+        if num_overfit_epochs > patience:
+            print(f'Patience has been exceeded. Training has been terminated at Epoch {epoch}.')
+            break
 
     writer.close()
     print("\nTraining complete.")
