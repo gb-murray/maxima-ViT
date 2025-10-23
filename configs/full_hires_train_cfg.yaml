@@ -2,11 +2,11 @@
 
 paths:
   # Directory where the model checkpoint will be saved.
-  output_dir: "../models/v1.4"
+  output_dir: "../models/v1.5"
 
 data:
   # Path to the HDF5 file containing the dataset.
-  hdf5_path: "../datasets/MAXIMA-ViT_25k_dataset.hdf5"
+  hdf5_path: "../datasets/MAXIMA-ViT_alpha_Al2O3_Eiger2Cdte_1M_250k_dataset.hdf5"
   train_group: "training_pool"
   val_group: "test"
 
@@ -16,11 +16,11 @@ model:
   vit_hidden_dim: 768 
   num_outputs: 6
   image_size: 1056
-  name: "MaxViT_v1.4f.pth"
+  name: "MaxViT_v1.5.pth"
 
 training:
   freeze_backbone: false
   batch_size: 32
   epochs: 100
-  learning_rate: 0.0000005
+  learning_rate: 0.0000001
   patience: 10

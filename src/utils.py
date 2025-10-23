@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms
 import numpy as np
+from sklearn.metrics import mean_absolute_error
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
 
@@ -75,7 +76,11 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, write
     model.train()
     total_loss = 0
 
-    for images, labels in tqdm(dataloader, desc="Training"):
+    num_batches = len(dataloader)
+
+    for i, (images, labels) in enumerate(tqdm(dataloader, desc="Training")):
+        is_last_batch = (i == num_batches - 1)
+
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -85,11 +90,17 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, write
             loss = loss_fn(predictions, labels)
         
         scaler.scale(loss).backward()
+
+        if is_last_batch:
+            for name, param in model.named_parameters():
+                if param.requires_grad and param.grad is not None:
+                    writer.add_histogram(f'Gradients/{name}', param.grad.data, epoch)
+
         scaler.step(optimizer)
         scaler.update()
 
         total_loss += loss.item()
-    return total_loss / len(dataloader)
+    return total_loss / num_batches
 
 def validate(model, dataloader, loss_fn, device, writer, epoch):
     """
