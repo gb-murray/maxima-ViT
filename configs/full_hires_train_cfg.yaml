@@ -6,7 +6,7 @@ paths:
 
 data:
   # Path to the HDF5 file containing the dataset.
-  hdf5_path: "../datasets/MAXIMA-ViT_alpha_Al2O3_Eiger2Cdte_1M_250k_dataset.hdf5"
+  hdf5_path: "../datasets/MAXIMA-ViT_250k_dataset.hdf5"
   train_group: "training_pool"
   val_group: "test"
 
@@ -20,7 +20,7 @@ model:
 
 training:
   freeze_backbone: false
-  batch_size: 32
+  batch_size: 8
   epochs: 100
   learning_rate: 0.0000001
   patience: 10

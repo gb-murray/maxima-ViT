@@ -57,7 +57,14 @@ def load_model(model_path: str, config: dict) -> nn.Module:
     
     model = create_model(config)
     state_dict = torch.load(model_path, map_location=torch.device('cpu'))
-    model.vit.load_state_dict(state_dict, strict=False) #type: ignore
+
+    try:
+        model.load_state_dict(state_dict, strict=True)
+        print("Successfully loaded full model state.")
+    except RuntimeError as e:
+        print(f"Could not load full state dict ({e}). Trying to load backbone only...")
+        model.vit.load_state_dict(state_dict, strict=False)
+        print("Successfully loaded backbone weights only.")
     
     return model
 
