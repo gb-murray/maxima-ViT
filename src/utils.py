@@ -5,7 +5,7 @@ from pyFAI.detectors import Detector, detector_factory
 import torch
 import torch.nn as nn
 from transformers import ViTModel, ViTConfig
-from .model import MaxViTModel
+from .model import MaxViTModel, MaxViTMultiHead
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms
@@ -41,13 +41,20 @@ def create_model(config: dict) -> nn.Module:
     # Build the model from the configuration (initializes with random weights)
     vit_backbone = ViTModel(model_config)
 
-    # Create the regression head
-    regression_head = nn.Sequential(
-        nn.Linear(config['model']['vit_hidden_dim'], 512),
-        nn.GELU(), nn.Dropout(0.1),
-        nn.Linear(512, config['model']['num_outputs'])
-    )
-    return MaxViTModel(vit_backbone, regression_head)
+    use_multi_head = config['model'].get('multi_head', False)
+
+    if use_multi_head:
+        print("Initializing multi-regression architecture...")
+        return MaxViTMultiHead(vit_backbone, hidden_dim=config['model']['vit_hidden_dim'])
+    
+    else:
+        print("Initializing single-regression architecture...")
+        regression_head = nn.Sequential(
+            nn.Linear(config['model']['vit_hidden_dim'], 512),
+            nn.GELU(), nn.Dropout(0.1),
+            nn.Linear(512, config['model']['num_outputs'])
+        )
+        return MaxViTModel(vit_backbone, regression_head)
 
 def load_model(model_path: str, config: dict) -> nn.Module:
     """
