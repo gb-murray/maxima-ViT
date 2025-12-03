@@ -65,7 +65,7 @@ def load_model(model_path: str, config: dict) -> nn.Module:
     model = create_model(config)
     state_dict = torch.load(model_path, map_location=torch.device('cpu'))
 
-    try:
+    try: 
         model.load_state_dict(state_dict, strict=True)
         print("Successfully loaded full model state.")
     except RuntimeError as e:
