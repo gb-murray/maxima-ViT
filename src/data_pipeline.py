@@ -21,14 +21,17 @@ class CalibrantSim:
         geometry (pyFAI.geometry.Geometry): The ideal detector geometry used in poni format.
     """
 
-    def __init__(self, calibrant: Calibrant, detector: Detector, geometry: dict):
+    def __init__(self, calibrant: Calibrant, detector: Detector, geometry: dict, wavelength: float):
         self.geometry = geometry
+        self.wavelength = wavelength
         self.calibrant = calibrant
         self.detector = detector
         self.image = None
-        self.azimuthal_integrator = AzimuthalIntegrator(
+
+        self.calibrant.set_wavelength(wavelength)
+        self.ai = AzimuthalIntegrator(
             detector=detector,
-            wavelength=calibrant.wavelength,
+            wavelength=wavelength,
             **geometry
         )
 
@@ -41,60 +44,54 @@ class CalibrantSim:
         return self.geometry.copy()
 
     def run(self,
-            snr: float = float('inf'),
-            eta: float = 0.5,
-            w_sharp: float = 1e-6,
-            broad_factor: float = 10.0,
-            imin: float = 0.0,
-            imax: float = 1.0):
-        """
-        Executes the simulation.
+            imax: float = 1000.0,
+            imin: float = 5.0,
+            w_sharp: float = 1e-4,
+            k_alpha_ratio: float = 0.5,
+            k_alpha_separation: float = 0.00443e-10) -> np.ndarray: #TODO implement generic separation logic for other sources
+            """
+            Executes the simulation with the given parameters.
 
-        Args:
-            snr (float): Desired signal-to-noise-ratio.
-            eta (float): Mixing parameter for pseudo-Voigt approximation.
-            w_sharp (float): W Caglioti parameter for the sharp component.
-            broad_factor (float): Multiplier for w_sharp to create the broad component.
-            imin (float): The absolute background intensity for the image.
-            imax (float): The absolute maximum peak intensity for the image.
-        """
-        if self.azimuthal_integrator is None:
-            from pyFAI.integrator.azimuthal import AzimuthalIntegrator
-            self.azimuthal_integrator = AzimuthalIntegrator(
-                detector=self.detector,
-                wavelength=self.calibrant.wavelength,
-                **self.geometry
+            Args:
+                imax (float): Peak intensity (counts)
+                imin (float): Background level (counts)
+                w_sharp (float): Peak width (Caglioti W)
+                k_alpha_ratio (float): Intensity of K-alpha 2 relative to K-alpha 1
+                k_alpha_separation (float): Wavelength difference in meters
+            """
+            
+            # peak splitting
+            lambda_1 = self.wavelength
+            lambda_2 = self.wavelength + k_alpha_separation
+            
+            # K-alpha 1
+            self.ai.wavelength = lambda_1
+            img_k1 = self.calibrant.fake_calibration_image(
+                self.ai, 
+                Imax=imax, 
+                Imin=0,     
+                W=w_sharp
             )
-
-        img_sharp = self.calibrant.fake_calibration_image(
-            self.azimuthal_integrator,
-            Imax=imax * (1.0 - eta),
-            Imin=imin / 2.0,  
-            W=w_sharp
-        )
-
-        w_broad = w_sharp * broad_factor
-        img_broad = self.calibrant.fake_calibration_image(
-            self.azimuthal_integrator,
-            Imax=imax * eta,
-            Imin=imin / 2.0, 
-            W=w_broad
-        )
-
-        combined_img = img_sharp + img_broad
-
-        noisy_img = self._add_noise(combined_img, snr)
-        self.frame = noisy_img
-        return cast(np.ndarray, self.frame)
-
-    def _add_noise(self, image: np.ndarray, snr: float) -> np.ndarray:
-        image[image < 0] = 0
-
-        if snr == float('inf'):
-            return image.astype(np.float32)
-
-        noisy_image = np.random.poisson(image * snr) / snr
-        return noisy_image.astype(np.float32)
+            
+            # K-alpha 2
+            self.ai.wavelength = lambda_2
+            img_k2 = self.calibrant.fake_calibration_image(
+                self.ai, 
+                Imax=imax * k_alpha_ratio, 
+                Imin=0, 
+                W=w_sharp
+            )
+            
+            self.ai.wavelength = lambda_1 # reset to original wavelength
+            
+            # combine signals
+            clean_signal = img_k1 + img_k2 + imin
+            
+            # add poisson noise
+            clean_signal[clean_signal < 0] = 0
+            self.image = np.random.poisson(clean_signal).astype(np.float32)
+            
+            return self.image
     
 class HDF5Dataset(Dataset):
     """
