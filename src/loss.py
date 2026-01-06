@@ -23,8 +23,10 @@ class Loss(nn.Module):
         Calculates the final loss value.
         """
         device = y_pred.device
+        
         self.scale_factors = self.scale_factors.to(device)
         self.weights = self.weights.to(device)
+        self.centers = self.centers.to(device)
 
         y_pred_norm = (y_pred - self.centers) / self.scale_factors
         y_true_norm = (y_true - self.centers) / self.scale_factors
