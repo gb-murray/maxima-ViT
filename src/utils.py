@@ -202,7 +202,7 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     else:
         image = np.zeros_like(image)
 
-    image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1)
+    image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1).float()
         
     _ , h, w = image_tensor.shape
     max_dim = max(h, w)
@@ -215,7 +215,7 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     resize_transform = transforms.Resize((image_size, image_size), antialias=True)
     final_tensor = resize_transform(padded_tensor)
 
-    final_tensor = transforms.Normalize( # normalize to ImageNet stats
+    final_tensor = transforms.functional.normalize( # normalize to ImageNet stats
         final_tensor,
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]
