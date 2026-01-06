@@ -1,0 +1,26 @@
+# Configuration for training a SWIN regression model.
+
+paths:
+  # Directory where the model checkpoint will be saved.
+  output_dir: "../models/swin/v1.0"
+
+data:
+  # Path to the HDF5 file containing the dataset.
+  hdf5_path: "../datasets/MAXIMA-SWIN_10k_dataset.hdf5"
+  train_group: "training_pool"
+  val_group: "test"
+
+model:
+  backbone: "microsoft/swin-base-patch4-window12-384-in22k"
+  hidden_dim: 1024
+  num_outputs: 6
+  image_size: 1056
+  name: "MaxSwin_v1.0.pth"
+  multi_head: false
+
+training:
+  freeze_backbone: false
+  batch_size: 8
+  epochs: 30 
+  learning_rate: 0.00002
+  patience: 10

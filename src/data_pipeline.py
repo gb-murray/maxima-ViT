@@ -28,11 +28,16 @@ class CalibrantSim:
         self.detector = detector
         self.image = None
 
-        self.calibrant.set_wavelength(wavelength)
-        self.ai = AzimuthalIntegrator(
-            detector=detector,
-            wavelength=wavelength,
-            **geometry
+        # peak splitting
+        lambda_1 = self.wavelength
+        lambda_2 = self.wavelength + 0.00443e-10  # K-alpha 2 offset for In K-alpha source
+
+        self.ai_primary = AzimuthalIntegrator(
+            detector=detector, wavelength=lambda_1, **geometry
+        )
+
+        self.ai_secondary = AzimuthalIntegrator(
+            detector=detector, wavelength=lambda_2, **geometry
         )
 
     def __repr__(self):
@@ -46,9 +51,8 @@ class CalibrantSim:
     def run(self,
             imax: float = 1000.0,
             imin: float = 5.0,
-            w_sharp: float = 1e-4,
-            k_alpha_ratio: float = 0.5,
-            k_alpha_separation: float = 0.00443e-10) -> np.ndarray: #TODO implement generic separation logic for other sources
+            fwhm: float = 0.15,
+            k_alpha_ratio: float = 0.5) -> np.ndarray: #TODO implement generic separation logic for other sources
             """
             Executes the simulation with the given parameters.
 
@@ -59,38 +63,41 @@ class CalibrantSim:
                 k_alpha_ratio (float): Intensity of K-alpha 2 relative to K-alpha 1
                 k_alpha_separation (float): Wavelength difference in meters
             """
-            
-            # peak splitting
-            lambda_1 = self.wavelength
-            lambda_2 = self.wavelength + k_alpha_separation
-            
+                        
             # K-alpha 1
-            self.ai.wavelength = lambda_1
+            self.calibrant.wavelength = self.ai_primary.wavelength
             img_k1 = self.calibrant.fake_calibration_image(
-                self.ai, 
+                self.ai_primary, 
                 Imax=imax, 
                 Imin=0,     
-                W=w_sharp
+                resolution=fwhm         
             )
             
             # K-alpha 2
-            self.ai.wavelength = lambda_2
+            self.calibrant.wavelength = self.ai_secondary.wavelength
             img_k2 = self.calibrant.fake_calibration_image(
-                self.ai, 
+                self.ai_secondary, 
                 Imax=imax * k_alpha_ratio, 
                 Imin=0, 
-                W=w_sharp
+                resolution=fwhm 
             )
             
-            self.ai.wavelength = lambda_1 # reset to original wavelength
-            
+            self.calibrant.set_wavelength(self.wavelength)
+
             # combine signals
             clean_signal = img_k1 + img_k2 + imin
             
-            # add poisson noise
+            # add poisson shot noise
             clean_signal[clean_signal < 0] = 0
             self.image = np.random.poisson(clean_signal).astype(np.float32)
-            
+
+            # add gaussian readout noise
+            readout_noise = np.random.normal(0, 10.0, self.image.shape)
+            self.image = self.image + readout_noise
+        
+            # clip negative values from Gauss
+            self.image[self.image < 0] = 0
+        
             return self.image
     
 class HDF5Dataset(Dataset):

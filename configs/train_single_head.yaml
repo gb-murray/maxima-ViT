@@ -13,7 +13,7 @@ data:
 model:
   # Hugging Face name for the pre-trained Vision Transformer.
   backbone: "google/vit-base-patch16-224-in21k"
-  vit_hidden_dim: 768 
+  hidden_dim: 768 
   num_outputs: 6
   image_size: 1056
   name: "MaxViT_v1.7s.pth"

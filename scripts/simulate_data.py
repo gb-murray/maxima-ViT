@@ -32,11 +32,12 @@ def generate_sample(config: dict):
     """
     Worker function to generate a single image and its label.
     """
-    calibrant = get_calibrant(config['calibrant'], config['wavelength'])
+    wavelength = config['wavelength']
+    calibrant = get_calibrant(config['calibrant'], wavelength)
     detector = get_detector(config['detector'])
     geometry_params = sample_geometry(config)
     
-    sim = CalibrantSim(calibrant, detector, geometry_params)
+    sim = CalibrantSim(calibrant, detector, geometry_params, wavelength)
     sim_params = {k: np.random.uniform(*v) for k, v in config['simulation_ranges'].items()}
     image = sim.run(**sim_params)
     

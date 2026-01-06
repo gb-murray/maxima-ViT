@@ -4,8 +4,8 @@ from pyFAI.calibrant import Calibrant, CALIBRANT_FACTORY
 from pyFAI.detectors import Detector, detector_factory
 import torch
 import torch.nn as nn
-from transformers import ViTModel, ViTConfig
-from .model import MaxViTModel, MaxViTMultiHead
+from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
+from .model import MaxViT, MaxViTMultiHead, MaxSWIN
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms
@@ -25,36 +25,95 @@ def get_detector(alias:str) -> Detector:
 
     return detector
 
+# def create_model(config: dict) -> nn.Module:
+
+#     """
+#     Instantiates a model with the specified architecture and random weights.
+#     """
+#     print(f"Creating new model architecture from config...")
+    
+#     # Load the configuration of the pretrained model
+#     model_config = ViTConfig.from_pretrained(
+#         config['model']['backbone'],
+#         image_size=config['model'].get('image_size', 224)
+#     )
+    
+#     # Build the model from the configuration (initializes with random weights)
+#     vit_backbone = ViTModel(model_config)
+
+#     use_multi_head = config['model'].get('multi_head', False)
+
+#     if use_multi_head:
+#         print("Initializing multi-regression architecture...")
+#         return MaxViTMultiHead(vit_backbone, hidden_dim=config['model']['vit_hidden_dim'])
+    
+#     else:
+#         print("Initializing single-regression architecture...")
+#         regression_head = nn.Sequential(
+#             nn.Linear(config['model']['vit_hidden_dim'], 512),
+#             nn.GELU(), nn.Dropout(0.1),
+#             nn.Linear(512, config['model']['num_outputs'])
+#         )
+#         return MaxViTModel(vit_backbone, regression_head)
+    
 def create_model(config: dict) -> nn.Module:
-
     """
-    Instantiates a model with the specified architecture and random weights.
+    Instantiates a ViT or Swin model with the specified architecture.
     """
-    print(f"Creating new model architecture from config...")
-    
-    # Load the configuration of the pretrained model
-    model_config = ViTConfig.from_pretrained(
-        config['model']['backbone'],
-        image_size=config['model'].get('image_size', 224)
-    )
-    
-    # Build the model from the configuration (initializes with random weights)
-    vit_backbone = ViTModel(model_config)
-
+    backbone_name = config['model']['backbone']
+    image_size = config['model'].get('image_size', 224)
+    hidden_dim = config['model']['hidden_dim']
+    num_outputs = config['model']['num_outputs']
     use_multi_head = config['model'].get('multi_head', False)
 
+    print(f"Initilizing model architecture: {backbone_name}")
+    print(f"Target Resolution: {image_size}x{image_size}")
+
+    # build the regression head
     if use_multi_head:
         print("Initializing multi-regression architecture...")
-        return MaxViTMultiHead(vit_backbone, hidden_dim=config['model']['vit_hidden_dim'])
-    
+        if "swin" in backbone_name.lower():
+            raise NotImplementedError("Multi-head logic not yet ported to Swin factory.")
+        else:
+            pass #TODO: Reimplement multi-head
+
     else:
-        print("Initializing single-regression architecture...")
+        print("Initializing regression architecture...")
         regression_head = nn.Sequential(
-            nn.Linear(config['model']['vit_hidden_dim'], 512),
-            nn.GELU(), nn.Dropout(0.1),
-            nn.Linear(512, config['model']['num_outputs'])
+            nn.Linear(hidden_dim, 512),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(512, num_outputs)
         )
-        return MaxViTModel(vit_backbone, regression_head)
+
+    # build the backbone
+    if "swin" in backbone_name.lower():
+        print("Loading SWIN backbone...")
+        
+        swin_config = SwinConfig.from_pretrained(backbone_name)
+        swin_config.image_size = image_size
+        
+        backbone = SwinModel.from_pretrained(
+            backbone_name, 
+            config=swin_config,
+            ignore_mismatched_sizes=True
+        )
+        
+        return MaxSWIN(backbone, regression_head)
+
+    else:
+        print("Loading ViT backbone...")
+        
+        vit_config = ViTConfig.from_pretrained(backbone_name)
+        vit_config.image_size = image_size
+        
+        backbone = ViTModel.from_pretrained(
+            backbone_name, 
+            config=vit_config,
+            ignore_mismatched_sizes=True
+        )
+        
+        return MaxViT(backbone, regression_head)
 
 def load_model(model_path: str, config: dict) -> nn.Module:
     """
@@ -133,9 +192,17 @@ def validate(model, dataloader, loss_fn, device, writer, epoch):
 def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     """
     Converts a 2D diffraction pattern from an array to a tensor.
-    The image is padded and resampled to fit model specifications.
+    The image is padded, resampled, and normalized to fit model specifications.
     """
-    image_tensor = torch.from_numpy(image).unsqueeze(0).float()
+    image = np.log1p(image)
+
+    img_min, img_max = image.min(), image.max()
+    if img_max > img_min:
+        image = (image - img_min) / (img_max - img_min)
+    else:
+        image = np.zeros_like(image)
+
+    image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1)
         
     _ , h, w = image_tensor.shape
     max_dim = max(h, w)
@@ -148,6 +215,10 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     resize_transform = transforms.Resize((image_size, image_size), antialias=True)
     final_tensor = resize_transform(padded_tensor)
 
-    final_tensor = final_tensor.repeat(3, 1, 1)
+    final_tensor = transforms.Normalize( # normalize to ImageNet stats
+        final_tensor,
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
 
     return final_tensor

@@ -2,31 +2,25 @@
 
 paths:
   # The full path, including filename, for the output HDF5 dataset.
-  output_path: "../datasets/MAXIMA-ViT_25k_dataset.hdf5"
+  output_path: "../datasets/MAXIMA-SWIN_10k_dataset.hdf5"
 
 calibrant: 'alpha_Al2O3'
 detector: 'Eiger2Cdte_1M'
 wavelength: 0.5121261413149675e-10
 
 geometry_ranges:
-  dist: [0.04, 0.30]
-  poni1: [0.02, 0.06]
-  poni2: [0.02, 0.06]
-  rot1: [-0.25, 0.25]
-  rot2: [-0.25, 0.25]
-  rot3: [-0.25, 0.25]
+  dist: [0.10, 0.15]
+  poni1: [0.040, 0.045]
+  poni2: [0.035, 0.040]
+  rot1: [-0.05, 0.05]
+  rot2: [-0.05, 0.05]
+  rot3: [-0.05, 0.05]
 
 simulation_ranges:
-  snr: [1.0, 20.0]
-  eta: [0.0, 1.0]
-  w_sharp: [0.000001, 0.000005]
-  broad_factor: [10.0, 50.0]
-  imin: [0.1, 0.25]
-  imax: [1.0, 1.0]
+  fwhm: [0.13, 0.20]
+  imin: [2.0, 6.0]
+  imax: [150.0, 300.0]
 
 generation:
-  # Total number of images to generate.
-  num_images: 25000
-  # Fraction of the dataset to be held out for the final test set.
-  # The rest (1.0 - test_split_ratio) will go into the 'training_pool'.
+  num_images: 10000
   test_split_ratio: 0.1
