@@ -222,3 +222,23 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     )
 
     return final_tensor
+
+def image_to_tensor_legacy(image: np.ndarray, image_size: int) -> torch.Tensor:
+    """
+    Legacy preprocessing for v1.6 models (Linear scaling, no ImageNet norm).
+    """
+
+    image_tensor = torch.from_numpy(image).float().unsqueeze(0).repeat(3, 1, 1)
+
+    from torchvision.transforms import functional as F
+    _, h, w = image_tensor.shape
+    max_dim = max(h, w)
+    pad_h = (max_dim - h) // 2
+    pad_w = (max_dim - w) // 2
+    
+    if pad_h > 0 or pad_w > 0:
+        image_tensor = F.pad(image_tensor, (pad_w, pad_h))
+        
+    final_tensor = F.resize(image_tensor, (image_size, image_size), antialias=True)
+
+    return final_tensor

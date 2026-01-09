@@ -2,14 +2,14 @@
 
 paths:
   # The full path, including filename, for the output HDF5 dataset.
-  output_path: "../datasets/MAXIMA-SWIN_10k_dataset.hdf5"
+  output_path: "../datasets/MAXIMA-SWIN_20k_dataset.hdf5"
 
 calibrant: 'alpha_Al2O3'
 detector: 'Eiger2Cdte_1M'
 wavelength: 0.5121261413149675e-10
 
 geometry_ranges:
-  dist: [0.10, 0.15]
+  dist: [0.05, 0.3]
   poni1: [0.040, 0.045]
   poni2: [0.035, 0.040]
   rot1: [-0.05, 0.05]
@@ -22,5 +22,5 @@ simulation_ranges:
   imax: [150.0, 300.0]
 
 generation:
-  num_images: 10000
+  num_images: 20000
   test_split_ratio: 0.1
