@@ -2,9 +2,9 @@
 
 paths:
   # The full path, including filename, for the output HDF5 dataset.
-  output_path: "../datasets/MAXIMA-SWIN_20k_dataset.hdf5"
+  output_path: "../datasets/MAXIMA-SWIN_20k_CeO2_Eiger2Cdte_1M_dataset.hdf5"
 
-calibrant: 'alpha_Al2O3'
+calibrant: 'CeO2'
 detector: 'Eiger2Cdte_1M'
 wavelength: 0.5121261413149675e-10
 

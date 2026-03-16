@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 import h5py
 from torchvision import transforms
-from src.utils import image_to_tensor
+from .utils import image_to_tensor
 
 class CalibrantSim:
     """

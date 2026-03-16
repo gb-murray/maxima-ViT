@@ -2,7 +2,7 @@
 
 paths:
   # Directory where the model checkpoint will be saved.
-  output_dir: "../models/swin/v1.1"
+  output_dir: "../models/swin/v1.2"
 
 data:
   # Path to the HDF5 file containing the dataset.
@@ -15,12 +15,12 @@ model:
   hidden_dim: 1024
   num_outputs: 6
   image_size: 1056
-  name: "MaxSwin_v1.1.pth"
+  name: "MaxSwin_v1.2.pth"
   multi_head: false
 
 training:
   freeze_backbone: false
-  batch_size: 8
+  batch_size: 4
   epochs: 10 
   learning_rate: 0.000002
   patience: 10

@@ -1,7 +1,6 @@
 # Performs k-fold cross validation 
 
 import os
-import sys
 import argparse
 import yaml
 import numpy as np
@@ -12,13 +11,9 @@ from torch.optim import AdamW
 from torch.amp.grad_scaler import GradScaler
 from sklearn.model_selection import KFold
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-sys.path.append(project_root)
-
-from src.loss import Loss
-from src.utils import create_model, train_one_epoch, validate
-from src.data_pipeline import HDF5Dataset
+from maxima_vit.loss import Loss
+from maxima_vit.utils import create_model, train_one_epoch, validate
+from maxima_vit.data_pipeline import HDF5Dataset
 
 def main(config: dict, checkpoint_path: str = None): #type: ignore
     """

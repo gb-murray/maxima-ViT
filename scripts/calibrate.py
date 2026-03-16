@@ -1,31 +1,22 @@
 # Uses a trained Maxima-ViT model to predict the 6D geometry of a diffraction pattern.
 # NOT intended for high-throughput inferences, just one-shots
 
+# things from the config:
+# - model version
+# - image size
+# - architecture specs for create_model
+# - calibrant and detector info
+
 import os
-import sys
 import argparse
 import yaml
 import fabio
 import numpy as np
 import torch
-from torchvision.transforms import Resize
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-sys.path.append(project_root)
+from pyFAI.geometry import Geometry
 
-from src.utils import create_model, image_to_tensor
-
-def preprocess_image(image_path: str, image_size: int, device: torch.device) -> torch.Tensor:
-    """
-    Loads and preprocesses a single 2D diffraction pattern.
-    """
-    print(f"Loading image: {image_path}")
-    
-    image = fabio.open(image_path).data.astype(np.float32)
-    tensor = image_to_tensor(image, image_size)
-
-    return tensor.to(device)
+from maxima_vit.utils import load_model, image_to_tensor, get_calibrant, get_detector, PeakOptimizer
 
 def save_poni_file(output_path: str, params: np.ndarray, config: dict):
     """
@@ -55,51 +46,81 @@ def main():
     parser.add_argument("--output", help="Optional path to save the output .poni file.")
     args = parser.parse_args()
 
-    # Load configuration
+    # load config
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
-    config['model_path'] = args.model_path # store for header
+    # config['model_path'] = args.model_path # store for header
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
 
-    # Load Model
-    print("Loading model...")
-    model = create_model(config)
-    state_dict = torch.load(args.model_path, map_location=device)
-    try:
-        model.load_state_dict(state_dict)
-    except RuntimeError:
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            name = k[10:] if k.startswith('_orig_mod.') else k
-            new_state_dict[name] = v
-        model.load_state_dict(new_state_dict)
+    # load the pattern
+    image = fabio.open(args.image).data.astype(np.float32)
 
+    image = np.clip(image, 30.0, 300.0) # clip zingers, beamstop
+    image_size = config['model'].get('image_size', 1056)
+    
+    tensor = image_to_tensor(args.image, image_size)
+    tensor = tensor.unsqueeze(0).to(device)
+
+    # load model weights
+    model = load_model(args.model_path, config)
     model.to(device)
     model.eval() 
 
-    # Preprocess the image
-    image_size = config['model'].get('image_size', 224)
-    input_tensor = preprocess_image(args.image, image_size, device)
-
-    # Run Inference
-    print("Running inference...")
+    # run inference
     with torch.no_grad():
-        predicted_params_tensor = model(input_tensor)
+        prediction = model(tensor).cpu().numpy().flatten()
 
-    # Post-process and display results
-    predicted_params = predicted_params_tensor.cpu().numpy().flatten()
+    calibrant = get_calibrant(config['calibrant'], config['wavelength'])
+    detector = get_detector(config['detector'])
     
-    print("\n--- Calibration Results ---")
-    param_names = ["Distance (m)", "PONI1 (m)", "PONI2 (m)", "Rotation 1 (rad)", "Rotation 2 (rad)", "Rotation 3 (rad)"]
-    for name, value in zip(param_names, predicted_params):
-        print(f"{name:<20}: {value:.6f}")
+    geometry = Geometry(
+        dist=prediction[0],
+        poni1=prediction[1],
+        poni2=prediction[2],
+        rot1=prediction[3],
+        rot2=prediction[4],\
+        rot3=prediction[5],
+        wavelength=calibrant.wavelength,
+        detector=detector
+    )
 
-    # Save output file
+    optimizer = PeakOptimizer(
+        image=image,
+        initial_geometry=geometry,
+        calibrant=calibrant
+    )
+
+    refiner = optimizer.optimize()
+
+    refined_dist = refiner.dist
+    refined_poni1 = refiner.poni1
+    refined_poni2 = refiner.poni2
+    refined_rot1 = refiner.rot1
+    refined_rot2 = refiner.rot2
+    refined_rot3 = refiner.rot3
+
+    refined_geometry = Geometry(
+        dist=refined_dist,
+        poni1=refined_poni1,
+        poni2=refined_poni2,
+        rot1=refined_rot1,
+        rot2=refined_rot2,
+        rot3=refined_rot3,
+        wavelength=calibrant.wavelength,
+        detector=detector
+    )
+
+    # save output file
     if args.output:
-        save_poni_file(args.output, predicted_params, config)
+        save_poni_file(args.output, refined_geometry.as_array(), config)
+
+    else: 
+        print("\nOutput .poni file not specified. Results will not be saved.")
+        print("\n--- Calibration Results ---")
+        param_names = ["Distance (m)", "PONI1 (m)", "PONI2 (m)", "Rotation 1 (rad)", "Rotation 2 (rad)", "Rotation 3 (rad)"]
+        for name, value in zip(param_names, prediction):
+            print(f"{name:<10}: {value:.6f}")
 
 if __name__ == '__main__':
     main()

@@ -1,7 +1,6 @@
 # Trains a ViT regression model from a given config.yaml
 
 import os
-import sys
 import argparse
 import yaml
 import torch
@@ -11,13 +10,9 @@ from torch.optim import AdamW
 from torch.multiprocessing import set_start_method
 from torch.amp.grad_scaler import GradScaler
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-sys.path.append(project_root)
-
-from src.loss import Loss
-from src.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
-from src.data_pipeline import HDF5Dataset
+from maxima_vit.loss import Loss
+from maxima_vit.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
+from maxima_vit.data_pipeline import HDF5Dataset
 
 # Main Execution
 def main(config: dict, checkpoint_path = None):

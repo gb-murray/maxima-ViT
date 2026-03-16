@@ -26,11 +26,21 @@ The result is a fully autonomous system capable of providing fast, precise, and 
 ---
 ## Setup and Installation
 
+Create and activate a Python 3.11+ environment, then install the project in editable mode:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+This installs dependencies from `pyproject.toml` and makes package imports (for example `from maxima_vit.utils import ...`) available from scripts and notebooks without `sys.path` edits.
+
+The legacy `src.*` namespace remains available for backward compatibility.
 
 ---
 ## Usage
 
-All operations are controlled via YAML configuration files located in the `src/configs/` directory.
+All operations are controlled via YAML configuration files located in the `configs/` directory.
 
 ### Data Generation
 

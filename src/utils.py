@@ -2,8 +2,13 @@
 
 from pyFAI.calibrant import Calibrant, CALIBRANT_FACTORY
 from pyFAI.detectors import Detector, detector_factory
+from pyFAI.geometry import Geometry
+from pyFAI.geometryRefinement import GeometryRefinement
+from skimage.feature import peak_local_max
+from scipy.optimize import minimize
 import torch
 import torch.nn as nn
+import yaml
 from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
 from .model import MaxViT, MaxViTMultiHead, MaxSWIN
 from tqdm import tqdm
@@ -11,6 +16,7 @@ from torch.amp.autocast_mode import autocast
 from torchvision import transforms
 import numpy as np
 from sklearn.metrics import mean_absolute_error
+from pathlib import Path
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
 
@@ -96,7 +102,8 @@ def create_model(config: dict) -> nn.Module:
         backbone = SwinModel.from_pretrained(
             backbone_name, 
             config=swin_config,
-            ignore_mismatched_sizes=True
+            ignore_mismatched_sizes=True,
+            use_safetensors=True
         )
         
         return MaxSWIN(backbone, regression_head)
@@ -115,13 +122,28 @@ def create_model(config: dict) -> nn.Module:
         
         return MaxViT(backbone, regression_head)
 
-def load_model(model_path: str, config: dict) -> nn.Module:
+def _resolve_config(config: dict | str | Path) -> dict:
+    if isinstance(config, dict):
+        return config
+
+    if isinstance(config, (str, Path)):
+        with open(config, "r") as f:
+            loaded = yaml.safe_load(f)
+        if not isinstance(loaded, dict):
+            raise TypeError(f"Config file must deserialize to a dict, got {type(loaded)}")
+        return loaded
+
+    raise TypeError(f"config must be a dict or YAML path, got {type(config)}")
+
+
+def load_model(model_path: str, config: dict | str | Path) -> nn.Module:
     """
     Loads pre-trained weights into a fresh model architecture.
     """
     print(f"Loading weights from: {model_path}")
     
-    model = create_model(config)
+    resolved_config = _resolve_config(config)
+    model = create_model(resolved_config)
     state_dict = torch.load(model_path, map_location=torch.device('cpu'))
 
     try: 
@@ -242,3 +264,129 @@ def image_to_tensor_legacy(image: np.ndarray, image_size: int) -> torch.Tensor:
     final_tensor = F.resize(image_tensor, (image_size, image_size), antialias=True)
 
     return final_tensor
+
+class PeakOptimizer:
+    """
+    Class to optimize peak detection and geometry refinement parameters using Nelder-Mead method.
+    Arguments:
+        image (np.ndarray): 2D XRD image data.
+        initial_geometry (pyFAI.geometry.Geometry): Initial geometry parameters.
+        calibrant (pyFAI.calibrant.Calibrant): Calibrant object.
+        exclude_border (int): Number of pixels to exclude from image border during peak detection.
+    """
+    def __init__(self, image, initial_geometry, calibrant, exclude_border=300):
+        self.image = image
+        self.geo = initial_geometry
+        self.calibrant = calibrant
+        self.exclude_border = exclude_border
+        
+        self.best_params = None
+        self.best_error = float('inf')
+        self.best_peaks = None
+        self.best_refiner = None
+        self.best_geometry = None
+
+    def _objective(self, params):    
+        # min_distance must be >= 1 and an integer
+        min_dist = int(max(1, round(params[0])))
+        
+        # threshold must be between 0 and 1
+        thresh = np.clip(params[1], 0.001, 1.0)
+        
+        # tolerance must be positive (degrees)
+        tol_deg = max(0.1, params[2])
+
+        # peak detection
+        try:
+            peaks = peak_local_max(
+                self.image, 
+                min_distance=min_dist, 
+                threshold_rel=thresh,
+                exclude_border=self.exclude_border
+            )
+        except Exception:
+            return 1e6 # penalty for crash
+
+        if len(peaks) < 5:
+            return 1e5  # penalty for too few peaks
+
+        tth_measured = self.geo.tth(peaks[:, 0], peaks[:, 1])
+        tth_expected = np.array(self.calibrant.get_2th())
+        
+        diff_matrix = np.abs(tth_measured[:, None] - tth_expected[None, :])
+        
+        min_diffs = diff_matrix.min(axis=1)
+        ring_indices = diff_matrix.argmin(axis=1)
+        
+        mask = min_diffs < np.deg2rad(tol_deg)
+        
+        if np.sum(mask) < 6: 
+            return 1e4 # penalty for insufficient labeled peaks
+
+        # labeled data: [y, x, ring_index]
+        valid_peaks = peaks[mask]
+        valid_indices = ring_indices[mask]
+        
+        data = np.column_stack((valid_peaks[:, 0], valid_peaks[:, 1], valid_indices))
+
+        # refinement
+        try:
+            refiner = GeometryRefinement(
+                data=data,  
+                dist=self.geo.dist,
+                poni1=self.geo.poni1,
+                poni2=self.geo.poni2,
+                rot1=self.geo.rot1,
+                rot2=self.geo.rot2,
+                rot3=self.geo.rot3,
+                pixel1=self.geo.detector.pixel1,
+                pixel2=self.geo.detector.pixel2,
+                detector=self.geo.detector,
+                wavelength=self.calibrant.wavelength,
+                calibrant=self.calibrant
+            )
+            
+            error = refiner.refine2()
+            
+            if error < self.best_error:
+                self.best_error = error
+                self.best_params = (min_dist, thresh, tol_deg)
+                self.best_peaks = data
+                self.best_refiner = refiner
+                self.best_geometry = Geometry(
+                    dist=refiner.dist,
+                    poni1=refiner.poni1,
+                    poni2=refiner.poni2,
+                    rot1=refiner.rot1,
+                    rot2=refiner.rot2,
+                    rot3=refiner.rot3,
+                    wavelength=self.calibrant.wavelength,
+                    detector=self.geo.detector
+                )
+                
+            return error
+
+        except Exception as e:
+            return 1e6 # penalty for refinement failure
+
+    def optimize(self, initial_guess=[5, 0.1, 1.0]):
+        """
+        Runs the optimizer.
+        Initial Guess: [min_distance, threshold_rel, tolerance_degrees]
+        """
+        
+        result = minimize( # uses nelder-mead for non-smooth objective 
+            self._objective, 
+            x0=initial_guess, 
+            method='Nelder-Mead', 
+            tol=1e-4,
+            options={'maxiter': 50, 'disp': True}
+        )
+        
+        return self.best_refiner
+    
+    def get_best_geometry(self):
+        return self.best_geometry
+    
+    def get_best_refiner(self):
+        return self.best_refiner

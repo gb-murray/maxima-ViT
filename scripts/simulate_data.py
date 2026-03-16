@@ -1,5 +1,4 @@
 import os
-import sys
 import yaml
 import h5py
 import argparse
@@ -7,12 +6,8 @@ import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-sys.path.append(project_root)
-
-from src.data_pipeline import CalibrantSim
-from src.utils import get_calibrant, get_detector
+from maxima_vit.data_pipeline import CalibrantSim
+from maxima_vit.utils import get_calibrant, get_detector
 
 # Data Generation
 def sample_geometry(config: dict) -> dict:
