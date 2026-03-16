@@ -1,13 +1,31 @@
 import os
+
+# Keep simulation workers free of TensorFlow initialization/log spam.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+
 import yaml
 import h5py
 import argparse
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
+from pyFAI.calibrant import CALIBRANT_FACTORY
+from pyFAI.detectors import detector_factory
 
-from maxima_vit.data_pipeline import CalibrantSim
-from maxima_vit.utils import get_calibrant, get_detector
+from src.data_pipeline import CalibrantSim
+
+
+def get_calibrant(alias: str, wavelength: float):
+    calibrant = CALIBRANT_FACTORY(alias)
+    calibrant.wavelength = wavelength
+    return calibrant
+
+
+def get_detector(alias: str):
+    return detector_factory(alias)
 
 # Data Generation
 def sample_geometry(config: dict) -> dict:
