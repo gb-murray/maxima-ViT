@@ -10,9 +10,9 @@ from torch.optim import AdamW
 from torch.multiprocessing import set_start_method
 from torch.amp.grad_scaler import GradScaler
 
-from maxima_vit.loss import Loss
-from maxima_vit.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
-from maxima_vit.data_pipeline import DiffractionDataset
+from src.loss import Loss
+from src.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
+from src.data_pipeline import DiffractionDataset
 from src.detectors import build_detector_profile
 
 # Main Execution

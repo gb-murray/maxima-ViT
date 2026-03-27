@@ -11,9 +11,9 @@ from torch.optim import AdamW
 from torch.amp.grad_scaler import GradScaler
 from sklearn.model_selection import KFold
 
-from maxima_vit.loss import Loss
-from maxima_vit.utils import create_model, train_one_epoch, validate
-from maxima_vit.data_pipeline import DiffractionDataset
+from src.loss import Loss
+from src.utils import create_model, train_one_epoch, validate
+from src.data_pipeline import DiffractionDataset
 
 def main(config: dict, checkpoint_path: str = None): #type: ignore
     """

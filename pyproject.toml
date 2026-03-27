@@ -27,9 +27,32 @@ dependencies = [
     "transformers==4.56.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=5.0.0",
+]
+
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["maxima_vit", "maxima_vit.*", "src", "src.*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Fast unit tests",
+    "integration: Multi-module integration tests",
+    "slow: Slow tests excluded from default run",
+    "script_smoke: Script-level smoke tests",
+    "data: Data pipeline tests",
+    "model: Model construction and inference tests",
+]
+addopts = "--strict-markers -q"
+norecursedirs = ["lib64"]
