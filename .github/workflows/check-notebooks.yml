@@ -1,0 +1,42 @@
+name: Check Jupyter Notebook Outputs
+
+on:
+  pull_request:
+    paths:
+      - '**/*.ipynb'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.ipynb'
+
+jobs:
+  check-unstripped-notebooks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install nbstripout
+        run: pip install nbstripout
+
+      - name: Check for unstripped notebooks
+        run: |
+          # Strip out outputs from all notebooks
+          find . -name "*.ipynb" -not -path "*/.ipynb_checkpoints/*" -exec nbstripout {} +
+          
+          # Check if there are any git changes. If there are, it means 
+          # a notebook was committed with outputs.
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "::error::Populated Jupyter Notebooks detected! Please clear outputs before committing."
+            echo "The following files contain execution outputs:"
+            git status --porcelain
+            exit 1
+          else
+            echo "All notebooks are clean."
+          fi
