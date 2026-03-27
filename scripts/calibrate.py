@@ -16,7 +16,7 @@ import torch
 
 from pyFAI.geometry import Geometry
 
-from maxima_vit.utils import load_model, image_to_tensor, get_calibrant, get_detector, PeakOptimizer
+from src.utils import load_model, image_to_tensor, get_calibrant, get_detector, PeakOptimizer
 
 def save_poni_file(output_path: str, params: np.ndarray, config: dict):
     """

@@ -34,3 +34,9 @@ models/*
 
 # Private configs
 src/configs/*
+
+# Testing
+tests/__pycache__/
+tests/.pytest_cache/
+.coverage
+.pytest_cache/
