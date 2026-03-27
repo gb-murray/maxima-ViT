@@ -27,6 +27,7 @@ venv/
 # Large data files
 data/processed/*
 data/raw/*
+datasets/
 
 # Ignore trained model weights and checkpoints.
 models/*

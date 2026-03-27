@@ -12,7 +12,8 @@ from torch.amp.grad_scaler import GradScaler
 
 from maxima_vit.loss import Loss
 from maxima_vit.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
-from maxima_vit.data_pipeline import HDF5Dataset
+from maxima_vit.data_pipeline import DiffractionDataset
+from src.detectors import build_detector_profile
 
 # Main Execution
 def main(config: dict, checkpoint_path = None):
@@ -39,11 +40,22 @@ def main(config: dict, checkpoint_path = None):
 
     # Create Datasets and DataLoaders
     image_size=config['model'].get('image_size', 224)
+    detector_profile = build_detector_profile(config.get('detector'))
 
     train_group = config['data'].get('train_group', 'train')
     val_group = config['data'].get('val_group', 'validation')
-    train_dataset = HDF5Dataset(config['data']['hdf5_path'], train_group, image_size=image_size)
-    val_dataset = HDF5Dataset(config['data']['hdf5_path'], val_group, image_size=image_size)
+    train_dataset = DiffractionDataset(
+        config['data']['hdf5_path'],
+        train_group,
+        image_size=image_size,
+        detector_profile=detector_profile,
+    )
+    val_dataset = DiffractionDataset(
+        config['data']['hdf5_path'],
+        val_group,
+        image_size=image_size,
+        detector_profile=detector_profile,
+    )
 
     # num_workers = os.cpu_count() // 2 #type: ignore
     num_workers = 8

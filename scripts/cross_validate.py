@@ -13,7 +13,7 @@ from sklearn.model_selection import KFold
 
 from maxima_vit.loss import Loss
 from maxima_vit.utils import create_model, train_one_epoch, validate
-from maxima_vit.data_pipeline import HDF5Dataset
+from maxima_vit.data_pipeline import DiffractionDataset
 
 def main(config: dict, checkpoint_path: str = None): #type: ignore
     """
@@ -30,7 +30,7 @@ def main(config: dict, checkpoint_path: str = None): #type: ignore
     k_folds = config['training'].get('k_folds', 5)
     
     # Load the entire training pool dataset into folds
-    full_dataset = HDF5Dataset(config['data']['hdf5_path'], 'training_pool', 
+    full_dataset = DiffractionDataset(config['data']['hdf5_path'], 'training_pool', 
                                image_size=config['model'].get('image_size', 224))
     
     kfold = KFold(n_splits=k_folds, shuffle=True, random_state=42)

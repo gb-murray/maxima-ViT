@@ -5,6 +5,7 @@ from pyFAI.detectors import Detector, detector_factory
 from pyFAI.geometry import Geometry
 from pyFAI.geometryRefinement import GeometryRefinement
 from skimage.feature import peak_local_max
+from skimage import exposure
 from scipy.optimize import minimize
 import torch
 import torch.nn as nn
@@ -218,11 +219,13 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     """
     image = np.log1p(image)
 
-    img_min, img_max = image.min(), image.max()
+    img_min, img_max = np.percentile(image, 1), np.percentile(image, 98.0)
     if img_max > img_min:
-        image = (image - img_min) / (img_max - img_min)
+        image = np.clip((image - img_min) / (img_max - img_min), 0.0, 1.0)
     else:
         image = np.zeros_like(image)
+
+    image = exposure.equalize_adapthist(image, clip_limit=0.05)
 
     image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1).float()
         

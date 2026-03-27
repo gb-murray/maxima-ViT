@@ -15,7 +15,7 @@ from multiprocessing import Pool, cpu_count
 from pyFAI.calibrant import CALIBRANT_FACTORY
 from pyFAI.detectors import detector_factory
 
-from src.data_pipeline import CalibrantSim
+from src.data_pipeline import CalibrantSimulator
 
 
 def get_calibrant(alias: str, wavelength: float):
@@ -50,9 +50,13 @@ def generate_sample(config: dict):
     detector = get_detector(config['detector'])
     geometry_params = sample_geometry(config)
     
-    sim = CalibrantSim(calibrant, detector, geometry_params, wavelength)
+    sim = CalibrantSimulator(calibrant, detector, geometry_params, wavelength)
     sim_params = {k: np.random.uniform(*v) for k, v in config['simulation_ranges'].items()}
-    image = sim.run(**sim_params)
+    image = sim.run(
+        **sim_params,
+        apply_domain_randomization=False,
+        randomize_occlusions=False,
+    )
     
     label = np.array(list(geometry_params.values()), dtype=np.float32)
     return image, label

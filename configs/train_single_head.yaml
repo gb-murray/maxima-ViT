@@ -4,6 +4,13 @@ paths:
   # Directory where the model checkpoint will be saved.
   output_dir: "../models/v1.7"
 
+detector:
+  profile: "default"
+  # Optional overrides for DetectorProfile fields:
+  # imin_range: [2.0, 6.0]
+  # beamstop_prob: 1.0
+  # deadzone_prob: 0.8
+
 data:
   # Path to the HDF5 file containing the dataset.
   hdf5_path: "../datasets/MAXIMA-ViT_1k_dataset.hdf5"
