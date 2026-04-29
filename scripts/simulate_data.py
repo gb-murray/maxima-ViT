@@ -13,7 +13,7 @@ import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from pyFAI.calibrant import CALIBRANT_FACTORY
-from pyFAI.detectors import detector_factory
+from pyFAI.detectors import detector_factory, Detector
 
 from src.data_pipeline import CalibrantSimulator
 
@@ -24,8 +24,15 @@ def get_calibrant(alias: str, wavelength: float):
     return calibrant
 
 
-def get_detector(alias: str):
-    return detector_factory(alias)
+def get_detector(detector: dict):
+    if 'alias' in detector and detector['alias'] is not None:
+        return detector_factory(detector['alias'])
+    else:
+        return Detector(
+            max_shape=tuple(detector['max_shape']),
+            pixel1=detector['pixel_size'],
+            pixel2=detector['pixel_size']
+        )
 
 # Data Generation
 def sample_geometry(config: dict) -> dict:
