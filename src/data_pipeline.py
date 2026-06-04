@@ -16,16 +16,21 @@ from .detectors import DetectorProfile
 class DomainRandomizer:
     """Applies on-the-fly detector/domain randomization to a diffraction image."""
 
-    def __init__(self, image_shape: tuple[int, int], profile: DetectorProfile | None = None):
+    def __init__(self, image_shape: tuple[int, int], pixel_size: float = 75e-6, profile: DetectorProfile | None = None):
         self.image_shape = image_shape
+        self.pixel_size = pixel_size
         self.profile = profile if profile is not None else DetectorProfile()
         self.rng = np.random.default_rng()
-        h, w = image_shape
-        self.cy = h / 2.0
-        self.cx = w / 2.0
+        
+    def _get_dist_sq_map(self, poni1: np.ndarray, poni2: np.ndarray) -> np.ndarray:
+        """Dynamically builds a squared distance map anchored to the true PONI."""
+        h, w = self.image_shape
 
+        cy_px = poni1 / self.pixel_size
+        cx_px = poni2 / self.pixel_size
+        
         y, x = np.ogrid[:h, :w]
-        self._dist_sq = (x - self.cx) ** 2 + (y - self.cy) ** 2
+        return (x - cx_px) ** 2 + (y - cy_px) ** 2
 
     @staticmethod
     def _sample_int(low: int, high: int, rng: np.random.Generator) -> int:
@@ -38,6 +43,7 @@ class DomainRandomizer:
         image: np.ndarray,
         imin: float,
         profile: DetectorProfile,
+        dist_sq: np.ndarray,
     ) -> np.ndarray:
         """
         Injects real-world photometric degradation: air scatter, azimuthal texture,
@@ -59,7 +65,7 @@ class DomainRandomizer:
 
         scatter_intensity = self.rng.uniform(*profile.scatter_intensity_range)
         decay_rate = self.rng.uniform(*profile.scatter_decay_range)
-        background = scatter_intensity * np.exp(-decay_rate * self._dist_sq)
+        background = scatter_intensity * np.exp(-decay_rate * dist_sq)
         work += background.astype(np.float32)
 
         global_baseline = self.rng.uniform(2.0, 5.0)
@@ -85,6 +91,7 @@ class DomainRandomizer:
         imin: float,
         profile: DetectorProfile,
         randomize_occlusions: bool,
+        dist_sq: np.ndarray,
     ) -> np.ndarray:
         h, w = image.shape
         cy, cx = h // 2, w // 2
@@ -113,7 +120,7 @@ class DomainRandomizer:
 
             # Fill beamstop with independent, bright Poisson scatter
             max_dist_sq = cx**2 + cy**2
-            normalized_dist = self._dist_sq / max_dist_sq
+            normalized_dist = dist_sq / max_dist_sq
             
             # The beamstop glows warmest near the direct beam and fades to the edges
             bs_center_glow = self.rng.uniform(400.0, 500.0)
@@ -121,6 +128,7 @@ class DomainRandomizer:
             
             # Create a smooth linear fade outward
             bs_profile = bs_center_glow * (1.0 - normalized_dist) + bs_edge_glow
+            bs_profile = np.clip(bs_profile, 0.0, None)
             bs_noise = self.rng.poisson(bs_profile).astype(np.float32)
             
             image[beamstop_mask] = bs_noise[beamstop_mask]
@@ -147,6 +155,8 @@ class DomainRandomizer:
     def apply(
         self,
         image: np.ndarray,
+        poni1: float,
+        poni2: float, 
         imin: float | None = None,
         randomize_occlusions: bool = True,
         profile_override: DetectorProfile | None = None,
@@ -156,16 +166,20 @@ class DomainRandomizer:
         if imin is None:
             imin = float(self.rng.uniform(*profile.imin_range))
 
+        dist_sq = self._get_dist_sq_map(poni1, poni2)
+
         degraded = self._apply_photometric_degradation(
             image=image,
             imin=imin,
             profile=profile,
+            dist_sq=dist_sq,
         )
         degraded = self._apply_random_occlusions(
             image=degraded,
             imin=imin,
             profile=profile,
             randomize_occlusions=randomize_occlusions,
+            dist_sq=dist_sq,
         )
         degraded[degraded < 0] = 0
         return degraded
@@ -341,15 +355,21 @@ class DiffractionDataset(Dataset):
         labels = self.file[self.group]['labels'] #type: ignore
 
         image = np.array(images[idx], dtype=np.float32) #type: ignore
+        label = labels[idx]
+
+        poni1 = label[1]
+        poni2 = label[2]
 
         if self.apply_dynamic_randomization:
             if self.randomizer is None:
-                self.randomizer = DomainRandomizer(image.shape, profile=self.detector_profile)
+                self.randomizer = DomainRandomizer(image.shape, pixel_size=75e-6, profile=self.detector_profile)
             image = self.randomizer.apply(
                 image=image,
+                poni1=poni1,
+                poni2=poni2,
             )
 
         final_tensor = image_to_tensor(image, self.image_size) #type:ignore
-        label_tensor = torch.from_numpy(labels[idx]).float() #type: ignore
+        label_tensor = torch.from_numpy(label).float() #type: ignore
         
         return final_tensor, label_tensor

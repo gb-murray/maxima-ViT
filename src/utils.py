@@ -9,6 +9,7 @@ from skimage import exposure
 from scipy.optimize import minimize
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import yaml
 from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
 from .model import MaxViT, MaxViTMultiHead, MaxSWIN
@@ -225,17 +226,15 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
     else:
         image = np.zeros_like(image)
 
-    image = exposure.equalize_adapthist(image, clip_limit=0.05)
-
     image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1).float()
         
     _ , h, w = image_tensor.shape
     max_dim = max(h, w)
-    pad_h = (max_dim - h) // 2
-    pad_w = (max_dim - w) // 2
+
+    pad_bottom = max_dim - h
+    pad_right = max_dim - w
     
-    padding_transform = transforms.Pad(padding=(pad_w, pad_h))
-    padded_tensor = padding_transform(image_tensor)
+    padded_tensor = F.pad(image_tensor, (0, pad_right, 0, pad_bottom), mode='constant', value=0.0)
 
     resize_transform = transforms.Resize((image_size, image_size), antialias=True)
     final_tensor = resize_transform(padded_tensor)
