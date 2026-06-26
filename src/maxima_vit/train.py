@@ -10,55 +10,42 @@ from torch.optim import AdamW
 from torch.multiprocessing import set_start_method
 from torch.amp.grad_scaler import GradScaler
 
-from src.loss import Loss
-from src.utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
-from src.data_pipeline import DiffractionDataset
-from src.detectors import build_detector_profile
+from .loss import Loss
+from .utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
+from .data_pipeline import DiffractionDataset
 
-# Main Execution
 def main(config: dict, checkpoint_path = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Load or create model
     if checkpoint_path:
         model = load_model(checkpoint_path, config).to(device)
     else:
         model = create_model(config).to(device)
 
-    # print("Compiling model...")
-    # model = torch.compile(model)
-    # print("Model compiled.")
-
     log_dir = os.path.join(config['paths']['output_dir'], 'logs')
     writer = SummaryWriter(log_dir=log_dir)
     print(f"TensorBoard logs will be saved to: {log_dir}")
 
-    # Conditionally freeze backbone
     if config['training'].get('freeze_backbone', False):
         freeze_backbone(model) #type: ignore
 
-    # Create Datasets and DataLoaders
-    image_size=config['model'].get('image_size', 224)
-    detector_profile = build_detector_profile(config.get('detector'))
-
+    image_size=config['model'].get('image_size', 1056)
     train_group = config['data'].get('train_group', 'train')
-    val_group = config['data'].get('val_group', 'validation')
+    test_group = config['data'].get('test_group', 'test')
+    
     train_dataset = DiffractionDataset(
         config['data']['hdf5_path'],
         train_group,
         image_size=image_size,
-        detector_profile=detector_profile,
     )
-    val_dataset = DiffractionDataset(
+    test_dataset = DiffractionDataset(
         config['data']['hdf5_path'],
-        val_group,
+        test_group,
         image_size=image_size,
-        detector_profile=detector_profile,
     )
 
-    # num_workers = os.cpu_count() // 2 #type: ignore
-    num_workers = 8
+    num_workers = os.cpu_count() // 2 #type: ignore
     print(f"Using {num_workers} subprocesses.")
 
     train_loader = DataLoader(
@@ -70,17 +57,20 @@ def main(config: dict, checkpoint_path = None):
         persistent_workers=True
     )
 
-    val_loader = DataLoader(
-        val_dataset,
+    test_loader = DataLoader(
+        test_dataset,
         batch_size=config['training']['batch_size'],
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
         persistent_workers=True
-)
+    )
 
-    # Instantiate loss and optimizer
-    loss_fn = Loss()
+    centers = train_dataset.centers
+    scale_factors = train_dataset.scale_factors
+    weights = config['training'].get('loss_weights', [1.0, 1.0, 1.0, 1.0, 1.0, 0.1])
+
+    loss_fn = Loss(centers=centers, scale_factors=scale_factors, weights=weights).to(device)
     optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=config['training']['learning_rate'])
     
     best_val_loss = float('inf')
@@ -92,21 +82,20 @@ def main(config: dict, checkpoint_path = None):
     patience = config['training'].get('patience', float('inf'))
     num_overfit_epochs = 0
 
-    # Main training loop
     for epoch in range(config['training']['epochs']):
         print(f"\n--- Epoch {epoch + 1}/{config['training']['epochs']} ---")
         train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, scaler, writer, epoch)
         writer.add_scalar('Loss/train', train_loss, epoch)
 
-        val_loss = validate(model, val_loader, loss_fn, device, writer, epoch)
-        writer.add_scalar('Loss/validation', val_loss, epoch)
+        test_loss = validate(model, test_loader, loss_fn, device, writer, epoch)
+        writer.add_scalar('Loss/test', test_loss, epoch)
 
         writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], epoch)
 
-        print(f"Epoch {epoch + 1}: Train Loss = {train_loss:.6f}, Val Loss = {val_loss:.6f}")
+        print(f"Epoch {epoch + 1}: Train Loss = {train_loss:.6f}, Test Loss = {test_loss:.6f}")
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if test_loss < best_val_loss:
+            best_val_loss = test_loss
             num_overfit_epochs = 0
             model_path = os.path.join(output_dir, config['model']['name'])
             torch.save(model.state_dict(), model_path)

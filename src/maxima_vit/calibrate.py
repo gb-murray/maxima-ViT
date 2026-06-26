@@ -7,7 +7,6 @@
 # - architecture specs for create_model
 # - calibrant and detector info
 
-import os
 import argparse
 import yaml
 import fabio
@@ -16,7 +15,7 @@ import torch
 
 from pyFAI.geometry import Geometry
 
-from src.utils import load_model, image_to_tensor, get_calibrant, get_detector, PeakOptimizer
+from .utils import load_model, image_to_tensor, get_calibrant, get_detector, PeakOptimizer
 
 def save_poni_file(output_path: str, params: np.ndarray, config: dict):
     """
@@ -49,7 +48,7 @@ def main():
     # load config
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
-    # config['model_path'] = args.model_path # store for header
+    config['model_path'] = args.model_path
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -59,7 +58,7 @@ def main():
     image = np.clip(image, 30.0, 300.0) # clip zingers, beamstop
     image_size = config['model'].get('image_size', 1056)
     
-    tensor = image_to_tensor(args.image, image_size)
+    tensor = image_to_tensor(image, image_size)
     tensor = tensor.unsqueeze(0).to(device)
 
     # load model weights
