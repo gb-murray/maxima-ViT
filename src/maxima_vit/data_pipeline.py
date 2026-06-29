@@ -55,7 +55,7 @@ class DiffractionDataset(Dataset):
         label = self.file[self.group]['labels'][idx] 
 
         if self.digital_twin:
-            background, _ = self.__generate_background__(self.H, self.W)
+            background, _ = self.__generate_background__(self.H, self.W)[0]
             map = np.clip(image + background, a_min=0, a_max=None)
             pattern = np.random.poisson(map).astype(np.float32)
             pattern[self.master_mask] = self.mask_intensity

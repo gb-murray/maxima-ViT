@@ -10,9 +10,9 @@ from torch.optim import AdamW
 from torch.multiprocessing import set_start_method
 from torch.amp.grad_scaler import GradScaler
 
-from .loss import Loss
-from .utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
-from .data_pipeline import DiffractionDataset
+from loss import Loss
+from utils import create_model, load_model, freeze_backbone, train_one_epoch, validate
+from data_pipeline import DiffractionDataset
 
 def main(config: dict, checkpoint_path = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
