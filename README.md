@@ -20,10 +20,11 @@ The result is a fully autonomous system capable of providing fast, precise, and 
 * **High-Resolution Support**: Includes a utility to interpolate positional embeddings, adapting pre-trained models to work on high-resolution detector images.
 
 ---
+
 ## Repository Structure
 
-
 ---
+
 ## Setup and Installation
 
 Create and activate a Python 3.11+ environment, then install the project in editable mode:
@@ -35,71 +36,100 @@ python -m pip install -e .
 
 This installs dependencies from `pyproject.toml` and makes package imports (for example `from maxima_vit.utils import ...`) available from scripts and notebooks without `sys.path` edits.
 
-The legacy `src.*` namespace remains available for backward compatibility.
+---
+
+## Docker Workflow
+
+This repository includes a Docker setup that supports:
+
+* Jupyter notebooks
+* CLI commands (`maxima-train`, `maxima-calibrate`)
+* Live editing of YAML configs and source code without rebuilding
+
+### 1. Build the image
+
+```bash
+docker compose build
+```
+
+The image is based on a generic Python image (`python:3.11-slim`) and installs:
+
+* PyTorch (`torch==2.8.0`, `torchvision==0.23.0`)
+* Project dependencies
+* Optional `dev` and `notebook` dependencies
+* JupyterLab
+
+### 2. Start JupyterLab
+
+```bash
+docker compose up
+```
+
+JupyterLab is exposed on `http://localhost:8888`.
+
+Set a custom token if desired:
+
+```bash
+JUPYTER_TOKEN=mytoken docker compose up
+```
+
+### 3. Run CLI commands in the container
+
+Train:
+
+```bash
+docker compose run --rm maxima-vit maxima-train configs/train_swin.yaml
+```
+
+Continue from checkpoint:
+
+```bash
+docker compose run --rm maxima-vit maxima-train configs/train_swin.yaml --load-checkpoint models/trained_head.pth
+```
+
+Calibrate:
+
+```bash
+docker compose run --rm maxima-vit maxima-calibrate --model-path models/best_model.pth --config configs/train_swin.yaml --image path/to/my_image.tif --output my_calibration.poni
+```
+
+### 4. Editable YAML configs without rebuild
+
+`docker-compose.yml` bind-mounts the repository into `/app` (`./:/app`).
+That means files like `configs/train_swin.yaml` are read live from your host filesystem.
+
+You can modify YAML configs (or notebook/code files) locally and rerun commands immediately without rebuilding the image.
 
 ---
+
 ## Usage
 
 All operations are controlled via YAML configuration files located in the `configs/` directory.
 
-### Data Generation
+### Training
 
-The `simulate_data.py` script generates a complete HDF5 dataset with training, validation, and test splits, and can upload it directly to a Girder data portal.
+Run training with the installed CLI entry point:
 
-1.  Configure dataset parameters in a `configs/data_config.yaml` file.
-2.  Set a valid `GIRDER_API_KEY` as an environment variable.
-3.  Run the script:
-    ```bash
-    python scripts/simulate_data.py configs/data_config.yaml
-    ```
+```bash
+maxima-train configs/train_swin.yaml
+```
 
-### Training Workflow
+Continue training from a checkpoint:
 
-The model is trained using a three-stage, coarse-to-fine process for maximum precision.
-
-#### Head Training 
-This quickly trains a custom multi-layer regression head on a large volume of low-resolution (224x224) simulated data.
-
-* **Config**: `configs/training_config.yaml` (set `freeze_backbone: true`, set `learning_rate` ~10e-4)
-* **Command**:
-    ```bash
-    python scripts/train.py configs/training_config.yaml
-    ```
-
-#### Stage 2: Full Model Fine-tuning
-This fine-tunes the entire network on the same low-resolution data, starting from the Stage 1 checkpoint.
-
-* **Config**: `configs/training_config.yaml` (set `freeze_backbone: false`, set `learning_rate` ~10e-5)
-* **Command**:
-    ```bash
-    python scripts/train.py configs/training_config.yaml --load-checkpoint models/trained_head.pth
-    ```
-
-#### Stage 3: High-Resolution Fine-tuning
-This final stage adapts the model to high-resolution experimental data for the highest precision.
-
-1.  **Interpolate Weights**: First, create a high-resolution version of your Stage 2 model weights.
-    * **Config**: `configs/tuning_config.yaml` (set `image_size`, `hdf5_path` to real data, small `batch_size` and `learning_rate` ~10e-6)
-    * **Command**:
-        ```bash
-        python scripts/interpolate_weights.py configs/tuning_config.yaml models/trained_model.pth models/interpolated_model.pth
-        ```
-
-2.  **Run Final Training**: Use the new config and the interpolated checkpoint.
-    * **Command**:
-        ```bash
-        python scripts/train.py configs/tuning_config.yaml --load-checkpoint models/interpolated_model.pth
-        ```
+```bash
+maxima-train configs/train_swin.yaml --load-checkpoint models/trained_head.pth
+```
 
 ### 3. Inference (Calibrating a New Image)
 
-To calibrate a new image using a fully trained model, use the `calibrate.py` script.
+To calibrate a new image using a fully trained model, use the installed CLI entry point.
 
 ```bash
-python scripts/calibrate.py --model-path models/best_model.pth --image path/to/my_image.tif --output my_calibration.poni
+maxima-calibrate --model-path models/best_model.pth --config configs/train_swin.yaml --image path/to/my_image.tif --output my_calibration.poni
 ```
 
 ---
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.

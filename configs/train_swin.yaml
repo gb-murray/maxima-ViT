@@ -2,27 +2,20 @@
 
 paths:
   # Directory where the model checkpoint will be saved.
-  output_dir: "../models/swin/v1.0"
-
-detector:
-  profile: "default"
-  # Optional overrides for DetectorProfile fields:
-  # imin_range: [2.0, 6.0]
-  # beamstop_prob: 1.0
-  # deadzone_prob: 0.8
+  output_dir: "path/to/output/directory"
 
 data:
   # Path to the HDF5 file containing the dataset.
-  hdf5_path: "../datasets/MAXIMA-SWIN_10k_dataset.hdf5"
-  train_group: "training_pool"
-  val_group: "test"
+  hdf5_path: "../path/to/dataset.hdf5"
+  train_group: "train"
+  test_group: "test"
 
 model:
   backbone: "microsoft/swin-base-patch4-window12-384-in22k"
   hidden_dim: 1024
   num_outputs: 6
   image_size: 1056
-  name: "MaxSwin_v1.0.pth"
+  name: "model_name.pth"
   multi_head: false
 
 training:
@@ -31,3 +24,5 @@ training:
   epochs: 30 
   learning_rate: 0.00002
   patience: 10
+  # [dist, poni1, poni2, rot1, rot2, rot3]
+  loss_weights: [10.0, 10.0, 10.0, 10.0, 10.0, 0.0]

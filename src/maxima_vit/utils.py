@@ -5,19 +5,17 @@ from pyFAI.detectors import Detector, detector_factory
 from pyFAI.geometry import Geometry
 from pyFAI.geometryRefinement import GeometryRefinement
 from skimage.feature import peak_local_max
-from skimage import exposure
 from scipy.optimize import minimize
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
-from .model import MaxViT, MaxViTMultiHead, MaxSWIN
+from .model import MaxViT, MaxSWIN
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms
 import numpy as np
-from sklearn.metrics import mean_absolute_error
 from pathlib import Path
 
 def get_calibrant(alias: str, wavelength: float) -> Calibrant:
@@ -32,37 +30,6 @@ def get_detector(alias:str) -> Detector:
     detector = detector_factory(alias)
 
     return detector
-
-# def create_model(config: dict) -> nn.Module:
-
-#     """
-#     Instantiates a model with the specified architecture and random weights.
-#     """
-#     print(f"Creating new model architecture from config...")
-    
-#     # Load the configuration of the pretrained model
-#     model_config = ViTConfig.from_pretrained(
-#         config['model']['backbone'],
-#         image_size=config['model'].get('image_size', 224)
-#     )
-    
-#     # Build the model from the configuration (initializes with random weights)
-#     vit_backbone = ViTModel(model_config)
-
-#     use_multi_head = config['model'].get('multi_head', False)
-
-#     if use_multi_head:
-#         print("Initializing multi-regression architecture...")
-#         return MaxViTMultiHead(vit_backbone, hidden_dim=config['model']['vit_hidden_dim'])
-    
-#     else:
-#         print("Initializing single-regression architecture...")
-#         regression_head = nn.Sequential(
-#             nn.Linear(config['model']['vit_hidden_dim'], 512),
-#             nn.GELU(), nn.Dropout(0.1),
-#             nn.Linear(512, config['model']['num_outputs'])
-#         )
-#         return MaxViTModel(vit_backbone, regression_head)
     
 def create_model(config: dict) -> nn.Module:
     """
@@ -72,27 +39,18 @@ def create_model(config: dict) -> nn.Module:
     image_size = config['model'].get('image_size', 224)
     hidden_dim = config['model']['hidden_dim']
     num_outputs = config['model']['num_outputs']
-    use_multi_head = config['model'].get('multi_head', False)
 
     print(f"Initilizing model architecture: {backbone_name}")
     print(f"Target Resolution: {image_size}x{image_size}")
 
     # build the regression head
-    if use_multi_head:
-        print("Initializing multi-regression architecture...")
-        if "swin" in backbone_name.lower():
-            raise NotImplementedError("Multi-head logic not yet ported to Swin factory.")
-        else:
-            pass #TODO: Reimplement multi-head
-
-    else:
-        print("Initializing regression architecture...")
-        regression_head = nn.Sequential(
-            nn.Linear(hidden_dim, 512),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, num_outputs)
-        )
+    print("Initializing regression architecture...")
+    regression_head = nn.Sequential(
+        nn.Linear(hidden_dim, 512),
+        nn.GELU(),
+        nn.Dropout(0.1),
+        nn.Linear(512, num_outputs)
+    )
 
     # build the backbone
     if "swin" in backbone_name.lower():
@@ -191,7 +149,9 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, write
         if is_last_batch:
             for name, param in model.named_parameters():
                 if param.requires_grad and param.grad is not None:
-                    writer.add_histogram(f'Gradients/{name}', param.grad.data, epoch)
+                    grad_data = param.grad.data
+                    if not torch.isnan(grad_data).any() and not torch.isinf(grad_data).any():
+                        writer.add_histogram(f'Gradients/{name}', grad_data, epoch)
 
         scaler.step(optimizer)
         scaler.update()
@@ -213,11 +173,12 @@ def validate(model, dataloader, loss_fn, device, writer, epoch):
             total_loss += loss.item()
     return total_loss / len(dataloader)
 
+
 def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
-    """
-    Converts a 2D diffraction pattern from an array to a tensor.
-    The image is padded, resampled, and normalized to fit model specifications.
-    """
+    """Converts a 2D diffraction pattern from an array to a model-ready tensor."""
+    image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
+    image = np.clip(image, 0, None)
+
     image = np.log1p(image)
 
     img_min, img_max = np.percentile(image, 1), np.percentile(image, 98.0)
@@ -227,43 +188,22 @@ def image_to_tensor(image: np.ndarray, image_size: int) -> torch.Tensor:
         image = np.zeros_like(image)
 
     image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1).float()
-        
-    _ , h, w = image_tensor.shape
+
+    _, h, w = image_tensor.shape
     max_dim = max(h, w)
 
     pad_bottom = max_dim - h
     pad_right = max_dim - w
-    
     padded_tensor = F.pad(image_tensor, (0, pad_right, 0, pad_bottom), mode='constant', value=0.0)
 
     resize_transform = transforms.Resize((image_size, image_size), antialias=True)
     final_tensor = resize_transform(padded_tensor)
 
-    final_tensor = transforms.functional.normalize( # normalize to ImageNet stats
+    final_tensor = transforms.functional.normalize(
         final_tensor,
         mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
+        std=[0.229, 0.224, 0.225],
     )
-
-    return final_tensor
-
-def image_to_tensor_legacy(image: np.ndarray, image_size: int) -> torch.Tensor:
-    """
-    Legacy preprocessing for v1.6 models (Linear scaling, no ImageNet norm).
-    """
-
-    image_tensor = torch.from_numpy(image).float().unsqueeze(0).repeat(3, 1, 1)
-
-    from torchvision.transforms import functional as F
-    _, h, w = image_tensor.shape
-    max_dim = max(h, w)
-    pad_h = (max_dim - h) // 2
-    pad_w = (max_dim - w) // 2
-    
-    if pad_h > 0 or pad_w > 0:
-        image_tensor = F.pad(image_tensor, (pad_w, pad_h))
-        
-    final_tensor = F.resize(image_tensor, (image_size, image_size), antialias=True)
 
     return final_tensor
 
