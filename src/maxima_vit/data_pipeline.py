@@ -82,8 +82,7 @@ class DiffractionDataset(Dataset):
         independent_jitter = np.random.uniform(0.95, 1.05, size=n_comps)
         final_weights = base_weights * global_exposure_jitter * independent_jitter
 
-        synthetic_bg = final_weights @ components
-        synthetic_bg = synthetic_bg.reshape(components.shape[1], components.shape[2])
+        synthetic_bg = np.tensordot(final_weights, components, axes=1)
 
         return synthetic_bg, final_weights
 
