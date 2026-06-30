@@ -31,7 +31,7 @@ class DiffractionDataset(Dataset):
             else:
                 raise ValueError(f"Normalization data not found in HDF5 file: {self.hdf5_path}")
 
-            if 'background_model' in f:
+            if 'background_model' in f and self.group == 'train':
                 self.digital_twin = True
                 
                 self.W = np.array(f['background_model']['W'], dtype=np.float32) 
@@ -41,7 +41,11 @@ class DiffractionDataset(Dataset):
 
                 self.num_bg_samples = self.W.shape[0]
                 print(f"[{group.upper()}] Loaded synthetic training set.")
+            elif 'background_model' in f and self.group == 'test':
+                self.digital_twin = False
+                print(f"[{group.upper()}] Loaded synthetic test set.")
             else:
+                self.digital_twin = False
                 print(f"[{group.upper()}] Loaded experimental training set.")
 
     def __len__(self):
@@ -55,7 +59,7 @@ class DiffractionDataset(Dataset):
         label = self.file[self.group]['labels'][idx] 
 
         if self.digital_twin:
-            background, _ = self.__generate_background__(self.H, self.W)[0]
+            background = self.__generate_background__(self.H, self.W)[0]
             map = np.clip(image + background, a_min=0, a_max=None)
             pattern = np.random.poisson(map).astype(np.float32)
             pattern[self.master_mask] = self.mask_intensity
@@ -79,6 +83,7 @@ class DiffractionDataset(Dataset):
         final_weights = base_weights * global_exposure_jitter * independent_jitter
 
         synthetic_bg = final_weights @ components
+        synthetic_bg = synthetic_bg.reshape(components.shape[1], components.shape[2])
 
         return synthetic_bg, final_weights
 
