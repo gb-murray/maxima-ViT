@@ -66,11 +66,8 @@ def main(config: dict, checkpoint_path = None):
         persistent_workers=True
     )
 
-    centers = train_dataset.centers
-    scale_factors = train_dataset.scale_factors
     weights = config['training'].get('loss_weights', [1.0, 1.0, 1.0, 1.0, 1.0, 0.1])
-
-    loss_fn = Loss(centers=centers, scale_factors=scale_factors, weights=weights).to(device)
+    loss_fn = Loss(weights=weights).to(device)
     optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=config['training']['learning_rate'])
     
     best_val_loss = float('inf')
