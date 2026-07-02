@@ -88,16 +88,28 @@ class DiffractionDataset(Dataset):
 
     def __to_tensor__(self, image: np.ndarray) -> torch.Tensor:
         """Converts a numpy array to a PyTorch tensor with shape (1, H, W)."""
+        mask_intensity = getattr(self, "mask_intensity", 4294967295)
+        mask = (image == mask_intensity)
+
         image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
         image = np.clip(image, 0, None)
         
         image = np.log1p(image)
 
-        img_min, img_max = np.percentile(image, 1), np.percentile(image, 98.0)
+        valid_pixels = image[~mask]
+
+        if len(valid_pixels) > 0:
+            img_min = np.percentile(valid_pixels, 0.1) 
+            img_max = np.percentile(valid_pixels, 99.9) 
+        else:
+            img_min, img_max = 0.0, 1.0
+        
         if img_max > img_min:
             image = np.clip((image - img_min) / (img_max - img_min), 0.0, 1.0)
         else:
             image = np.zeros_like(image)
+
+        image[mask] = 0.0
 
         image_tensor = torch.from_numpy(image).unsqueeze(0).repeat(3, 1, 1).float()
             
