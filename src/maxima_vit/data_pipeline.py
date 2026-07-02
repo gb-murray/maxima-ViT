@@ -67,8 +67,13 @@ class DiffractionDataset(Dataset):
         else:
             pattern = image.astype(np.float32)
 
-        image_tensor = self.__to_tensor__(pattern) #type: ignore
-        label_tensor = torch.from_numpy(label).float() #type: ignore
+        image_tensor = self.__to_tensor__(pattern)
+        label_tensor = torch.from_numpy(label).float()
+
+        centers_tensor = torch.from_numpy(self.centers).float()
+        scale_factors_tensor = torch.from_numpy(self.scale_factors).float()
+
+        label_tensor = (label_tensor - centers_tensor) / scale_factors_tensor # normalize labels, model will put out raw z-scores
         
         return image_tensor, label_tensor
     
