@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
-from .model import MaxViT, MaxSWIN
+from model import MaxViT, MaxSWIN
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms
@@ -118,11 +118,21 @@ def load_model(model_path: str, config: dict | str | Path) -> nn.Module:
 
 def freeze_backbone(model: nn.Module):
     """
-    Freezes the parameters of the ViT backbone.
+    Freezes the parameters of the Swin Transformer backbone, 
+    leaving only the final regression head unfrozen.
     """
     print("Freezing backbone weights. Only the regression head will be trained.")
-    for param in model.vit.parameters(): #type: ignore
+    
+    for param in model.parameters():
         param.requires_grad = False
+        
+    unfrozen_layers = []
+    for name, param in model.named_parameters():
+        if 'head' in name: 
+            param.requires_grad = True
+            unfrozen_layers.append(name)
+            
+    print(f"Successfully unfrozen: {unfrozen_layers}")
 
 def train_one_epoch(model, dataloader, optimizer, loss_fn, device, scaler, writer, epoch):
     """

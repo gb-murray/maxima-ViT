@@ -1,5 +1,3 @@
-# Data generation, augmentation, and Dataset classes
-
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -60,6 +58,7 @@ class DiffractionDataset(Dataset):
 
         if self.digital_twin:
             background = self.__generate_background__(self.H, self.W)[0]
+            background = background.reshape(image.shape)
             map = np.clip(image + background, a_min=0, a_max=None)
             pattern = np.random.poisson(map).astype(np.float32)
             pattern[self.master_mask] = self.mask_intensity
