@@ -1,28 +1,134 @@
-# Configuration for training a SWIN regression model.
+# XRD geometry training configuration. Paths are relative to the working directory.
+seed: 42
 
 paths:
-  # Directory where the model checkpoint will be saved.
-  output_dir: "C:/Users/gmurra12/projects/MAXIMA-ViT/models/swin/2026.7"
+  output_dir: models/PRISMS_XRD_2026.10
+  artifact_name: prisms_xrd_2026.10.0.pth
 
 data:
-  # Path to the HDF5 file containing the dataset.
-  hdf5_path: "C:/Users/gmurra12/projects/MAXIMA-ViT/data/JHACARD00011_alpha_Al2O3_Eiger2Cdte_1M_68.h5"
-  train_group: "train"
-  test_group: "test"
+  # The target transform is fixed for the entire curriculum and is read from
+  # this dataset's normalization group.
+  normalization_source: synthetic_train
+  datasets:
+    synthetic_train:
+      hdf5_path: data/PHAROS_alpha_Al2O3_Eiger2Cdte_1M_5K_02-09-2026.h5
+      group: train
+      randomize: true
+      shuffle: true
+    synthetic_validation:
+      hdf5_path: data/PHAROS_alpha_Al2O3_Eiger2Cdte_1M_5K_02-09-2026.h5
+      group: test
+      randomize: false
+      shuffle: false
+    # experimental_train:
+    #   hdf5_path: data/experimental_xrd.h5
+    #   group: train
+    #   randomize: false
+    #   shuffle: true
+    # experimental_validation:
+    #   hdf5_path: data/experimental_xrd.h5
+    #   group: validation
+    #   randomize: false
+    #   shuffle: false
+
+experiment:
+  name: alpha_Al2O3_Eiger2Cdte_1M
+  detector: Eiger2Cdte_1M
+  # The fixed source spectrum includes both K-alpha lines.
+  wavelengths_m: [5.121197787410171e-11, 5.1655146e-11]
+  fixed_parameters:
+    rot3: 0.0
+  metadata:
+    calibrant: alpha_Al2O3
+
+preprocessing:
+  lower_percentile: 0.1
+  upper_percentile: 99.9
+  mask_intensity: 4294967295
 
 model:
-  backbone: "microsoft/swin-base-patch4-window12-384-in22k"
-  hidden_dim: 1024
-  num_outputs: 6
+  family: swin
+  backbone: microsoft/swin-base-patch4-window12-384-in22k
+  feature_dim: 1024
+  head_hidden_dim: 512
   image_size: 1056
-  name: "swin_alpha_Al2O3_Eiger2Cdte_1M_2026.7.3.pth"
-  multi_head: false
+  dropout: 0.1
+
+uncertainty:
+  estimator: mc_dropout
+  samples: 32
+  stochastic_scope: head
 
 training:
-  freeze_backbone: false
   batch_size: 8
-  epochs: 300 
-  learning_rate: 0.000001
-  patience: 20
-  # [dist, poni1, poni2, rot1, rot2, rot3]
-  loss_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 0.0]
+  num_workers: 0
+  pin_memory: true
+  mixed_precision:
+    enabled: true
+    dtype: float16
+  stages:
+    - name: head_warmup
+      regime: deterministic
+      dataset: synthetic_train
+      validation_dataset: synthetic_validation
+      trainable: head
+      loss: l1
+      weights: [1, 1, 1, 1, 1]
+      learning_rate: 1.0e-4
+      epochs: 20
+      early_stopping:
+        patience: 20
+        min_delta: 0.0
+        restore_best: true
+    - name: translations
+      regime: deterministic
+      dataset: synthetic_train
+      validation_dataset: synthetic_validation
+      trainable: all
+      loss: l1
+      weights: [1, 1, 1, 0, 0]
+      learning_rate: 2.0e-5
+      epochs: 100
+      early_stopping:
+        patience: 20
+        min_delta: 0.0
+        restore_best: true
+    - name: rotations
+      regime: deterministic
+      dataset: synthetic_train
+      validation_dataset: synthetic_validation
+      trainable: all
+      loss: l1
+      weights: [0.1, 0.1, 0.1, 1, 1]
+      learning_rate: 2.0e-5
+      epochs: 100
+      early_stopping:
+        patience: 20
+        min_delta: 0.0
+        restore_best: true
+    - name: finetune
+      regime: deterministic
+      dataset: synthetic_train
+      validation_dataset: synthetic_validation
+      trainable: head
+      loss: huber
+      huber_delta: 0.1
+      weights: [1, 1, 1, 1, 1]
+      learning_rate: 1.0e-6
+      epochs: 1000
+      early_stopping:
+        patience: 20
+        min_delta: 0.0
+        restore_best: true
+    - name: probabilistic_head
+      regime: probabilistic
+      dataset: synthetic_train
+      validation_dataset: synthetic_validation
+      trainable: head
+      loss: gaussian_nll
+      learning_rate: 1.0e-6
+      epochs: 100
+      early_stopping:
+        patience: 20
+        min_delta: 0.0
+        restore_best: true

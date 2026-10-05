@@ -23,4 +23,4 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 
 EXPOSE 8888
 
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=maxima"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--IdentityProvider.token=xrd-geometry"]

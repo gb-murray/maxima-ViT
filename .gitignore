@@ -25,6 +25,8 @@ venv/
 # --- Project-Specific ---
 
 # Large data files
+data/*.h5
+data/*.hdf5
 data/processed/*
 data/raw/*
 datasets/

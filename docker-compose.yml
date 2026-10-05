@@ -1,20 +1,30 @@
+name: xrd-geometry
+
 services:
-  maxima-vit:
+  xrd-geometry:
     build:
       context: .
       dockerfile: Dockerfile
-    image: maxima-vit:dev
+    image: xrd-geometry:dev
     working_dir: /app
     volumes:
       - ./:/app
+      - ${XRD_DATA_DIR:-./data}:/app/data:ro
+      - ${XRD_MODEL_DIR:-./models}:/app/models
+      - huggingface-cache:/root/.cache/huggingface
     ports:
       - "8888:8888"
+      - "6006:6006"
     environment:
       PYTHONUNBUFFERED: "1"
-      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-maxima}
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-xrd-geometry}
+      HF_HOME: /root/.cache/huggingface
     command: >
       jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
-      --NotebookApp.token=${JUPYTER_TOKEN:-maxima}
+      --IdentityProvider.token=${JUPYTER_TOKEN:-xrd-geometry}
     gpus: all
     tty: true
     stdin_open: true
+
+volumes:
+  huggingface-cache:

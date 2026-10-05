@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "maxima-vit"
-version = "0.1.0"
-description = "Vision Transformer-based 6D detector geometry calibration for 2D XRD patterns"
+name = "xrd-geometry"
+version = "0.2.0"
+description = "Image-based probabilistic detector geometry inference for X-ray diffraction"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -25,8 +25,8 @@ dependencies = [
 ]
 
 [project.scripts]
-maxima-train = "maxima_vit.train:main"
-maxima-calibrate = "maxima_vit.calibrate:main"
+xrd-geometry-train = "xrd_geometry.cli.train:main"
+xrd-geometry-calibrate = "xrd_geometry.cli.calibrate:main"
 
 [project.optional-dependencies]
 notebook = [
@@ -50,7 +50,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["maxima_vit", "maxima_vit.*"]
+include = ["xrd_geometry", "xrd_geometry.*"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
