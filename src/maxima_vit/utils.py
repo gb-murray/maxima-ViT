@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 from transformers import ViTModel, ViTConfig, SwinModel, SwinConfig
-from model import MaxViT, MaxSWIN
+from .model import MaxViT, MaxSWIN
 from tqdm import tqdm
 from torch.amp.autocast_mode import autocast
 from torchvision import transforms

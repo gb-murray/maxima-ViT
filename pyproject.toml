@@ -30,6 +30,7 @@ maxima-calibrate = "maxima_vit.calibrate:main"
 
 [project.optional-dependencies]
 notebook = [
+    "grad-cam>=1.5.0",
     "matplotlib==3.10.6",
     "scikit-learn==1.7.2",
     "seaborn==0.13.2",

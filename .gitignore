@@ -11,6 +11,7 @@ dist/
 
 # Virtual Environments
 .env
+.env.*
 .venv
 env/
 venv/
@@ -24,13 +25,36 @@ venv/
 
 # --- Project-Specific ---
 
-# Large data files
-data/processed/*
-data/raw/*
-datasets/
+# Local data, predictions, and trained model artifacts
+/data/*
+!/data/README.md
+/datasets/
+/models/
+/runs/
+/outputs/
+/artifacts/
+/cache/
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+events.out.tfevents.*
+*.log
 
-# Ignore trained model weights and checkpoints.
-models/*
+# Research workspaces and machine-specific configuration
+/pilot/
+/manuscript/
+/analysis/
+/.remote_compare/
+/tmp/
+/configs/local/
+/configs/train_swin_pilot_528*.yaml
+/docker-compose.local*.yml
 
 # Private configs
 src/configs/*
@@ -40,3 +64,7 @@ tests/__pycache__/
 tests/.pytest_cache/
 .coverage
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+coverage.xml
+htmlcov/

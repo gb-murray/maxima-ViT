@@ -5,6 +5,11 @@
 
 An end-to-end deep learning model for the rapid and robust determination of 6D detector geometry from 2D powder X-ray diffraction patterns.
 
+This `main` branch preserves the legacy deterministic XRD study, including its
+`maxima_vit` package and study notebooks. The probabilistic `xrd_geometry`
+implementation is developed on the
+[`refactor/packaging` branch](https://github.com/gb-murray/maxima-ViT/tree/refactor/packaging).
+
 ## Overview
 
 Traditional methods for calibrating 2D XRD detector geometry rely on heuristic-based algorithms (e.g., edge detection, Hough transforms) that are often brittle and fail on non-ideal experimental data, such as patterns with spotty rings, high texture, or low signal-to-noise. This project overcomes these limitations by using a Vision Transformer (ViT) to learn the complex, non-linear relationship between a diffraction pattern and its underlying geometry.
