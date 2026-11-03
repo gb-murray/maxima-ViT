@@ -1,0 +1,52 @@
+name: xrd-geometry-jetson
+
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
+    image: xrd-geometry:jetson
+    runtime: nvidia
+    working_dir: /workspace
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - ./src:/workspace/src:ro
+      - ${XRD_CONFIG_DIR:-./configs}:/workspace/configs:ro
+      - ${XRD_DATA_DIR:-./data}:/workspace/data:ro
+      - ${XRD_MODEL_DIR:-./models}:/workspace/models
+      - ${XRD_RUN_DIR:-./runs}:/workspace/runs
+      - ${XRD_HF_CACHE_DIR:-./cache/huggingface}:/root/.cache/huggingface
+      - ${XRD_BACKBONE_DIR:-./models/backbones}:/opt/xrd-backbone:ro
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /workspace/src
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_OFFLINE: ${XRD_OFFLINE:-0}
+      TRANSFORMERS_OFFLINE: ${XRD_OFFLINE:-0}
+      XRD_BACKBONE_PATH: ${XRD_BACKBONE_PATH:-}
+    command: ["sleep", "infinity"]
+    tty: true
+    stdin_open: true
+    restart: "no"
+
+  tensorboard:
+    profiles: ["monitoring"]
+    image: xrd-geometry:jetson
+    working_dir: /workspace
+    volumes:
+      - ${XRD_MODEL_DIR:-./models}:/workspace/models:ro
+      - ${XRD_RUN_DIR:-./runs}:/workspace/runs:ro
+    ports:
+      - "${XRD_TENSORBOARD_PORT:-6006}:6006"
+    command:
+      - tensorboard
+      - --logdir_spec
+      - models:/workspace/models,runs:/workspace/runs
+      - --host
+      - 0.0.0.0
+      - --port
+      - "6006"
+    restart: unless-stopped

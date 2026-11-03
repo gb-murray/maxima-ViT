@@ -11,6 +11,7 @@ services:
       - ./:/app
       - ${XRD_DATA_DIR:-./data}:/app/data:ro
       - ${XRD_MODEL_DIR:-./models}:/app/models
+      - ${XRD_BACKBONE_DIR:-./models/backbones}:/opt/xrd-backbone:ro
       - huggingface-cache:/root/.cache/huggingface
     ports:
       - "8888:8888"
@@ -19,6 +20,7 @@ services:
       PYTHONUNBUFFERED: "1"
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-xrd-geometry}
       HF_HOME: /root/.cache/huggingface
+      XRD_BACKBONE_PATH: ${XRD_BACKBONE_PATH:-}
     command: >
       jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
       --IdentityProvider.token=${JUPYTER_TOKEN:-xrd-geometry}

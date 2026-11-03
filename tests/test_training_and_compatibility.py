@@ -49,6 +49,43 @@ def test_deterministic_to_probabilistic_dry_run():
     assert all(not parameter.requires_grad for parameter in model.feature_extractor.parameters())
 
 
+def test_covariance_scope_preserves_mean_parameters():
+    torch.manual_seed(8)
+    model = ImageRegressor(
+        CountingBackbone(),
+        FullCovarianceHead(6, 5, hidden_dim=10, quality_dim=3),
+    )
+    images = torch.randn(6, 3, 8, 8)
+    targets = torch.randn(6, 5)
+    quality = torch.randn(6, 3)
+    loader = DataLoader(TensorDataset(images, targets, quality), batch_size=2)
+    original_mean = {name: value.detach().clone() for name, value in model.head.mean.state_dict().items()}
+    run_stages(
+        model,
+        loader,
+        loader,
+        [
+            TrainingStage(
+                "count-aware",
+                "probabilistic",
+                1,
+                1e-3,
+                trainable="covariance",
+                loss="gaussian_nll",
+            )
+        ],
+        device=torch.device("cpu"),
+        feature_dim=6,
+        output_dim=5,
+        hidden_dim=10,
+        quality_dim=3,
+    )
+    for name, value in model.head.mean.state_dict().items():
+        torch.testing.assert_close(value, original_mean[name])
+    assert all(not parameter.requires_grad for parameter in model.head.mean.parameters())
+    assert all(parameter.requires_grad for parameter in model.head.cholesky.parameters())
+
+
 def test_versioned_artifact_round_trip(tmp_path: Path):
     model = _model()
     space = _space()

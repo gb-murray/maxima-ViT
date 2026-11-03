@@ -86,6 +86,9 @@ class HDF5DiffractionDataset(Dataset):
         *,
         randomize: bool | None = None,
         seed: int = 0,
+        exposure_range: tuple[float, float] | None = None,
+        quality_features: bool = False,
+        indices: list[int] | tuple[int, ...] | np.ndarray | None = None,
     ) -> None:
         self.path = str(path)
         self.group = group
@@ -93,14 +96,29 @@ class HDF5DiffractionDataset(Dataset):
         self.preprocessor = preprocessor
         self.seed = int(seed)
         self.epoch = 0
+        self.exposure_range = None if exposure_range is None else tuple(float(value) for value in exposure_range)
+        if self.exposure_range is not None:
+            lower, upper = self.exposure_range
+            if lower <= 0 or upper < lower:
+                raise ValueError("exposure_range must contain positive ordered bounds")
+        self.quality_features = bool(quality_features)
         self._file: h5py.File | None = None
 
         with h5py.File(self.path, "r") as handle:
             if group not in handle:
                 raise KeyError(f"HDF5 group {group!r} not found")
-            self.length = len(handle[group]["images"])
+            source_length = len(handle[group]["images"])
+            if indices is None:
+                self.indices = np.arange(source_length, dtype=np.int64)
+            else:
+                self.indices = np.asarray(indices, dtype=np.int64)
+                if self.indices.ndim != 1 or np.any(self.indices < 0) or np.any(self.indices >= source_length):
+                    raise ValueError("Dataset indices must be a one-dimensional in-range sequence")
+            self.length = len(self.indices)
             has_background = "background_model" in handle
             self.randomize = (group == "train" and has_background) if randomize is None else randomize
+            if self.exposure_range is not None and not self.randomize:
+                raise ValueError("exposure_range requires randomize=True")
             if self.randomize and not has_background:
                 raise ValueError("Randomization requested but background_model is absent")
             if has_background:
@@ -142,19 +160,32 @@ class HDF5DiffractionDataset(Dataset):
         self.close()
 
     def raw_sample(self, index: int) -> MeasurementSample:
+        source_index = int(self.indices[int(index)])
         handle = self._handle()
-        image = np.asarray(handle[self.group]["images"][index], dtype=np.float32)
-        target = np.asarray(handle[self.group]["labels"][index], dtype=np.float32)
+        image = np.asarray(handle[self.group]["images"][source_index], dtype=np.float32)
+        target = np.asarray(handle[self.group]["labels"][source_index], dtype=np.float32)
         if self.randomize:
-            rng = np.random.default_rng(np.random.SeedSequence([self.seed, self.epoch, index]))
+            rng = np.random.default_rng(np.random.SeedSequence([self.seed, self.epoch, source_index]))
             expected = image + self.background_randomizer(rng=rng)  # type: ignore[misc]
+            if self.exposure_range is not None:
+                lower, upper = self.exposure_range
+                exposure = float(np.exp(rng.uniform(np.log(lower), np.log(upper))))
+                expected = exposure * expected
             image = PoissonMeasurement(self.master_mask, self.mask_intensity)(expected, rng=rng)
-        return MeasurementSample(image=image, target=target, index=index, group=self.group)
+        return MeasurementSample(image=image, target=target, index=source_index, group=self.group)
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(
+        self, index: int
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         sample = self.raw_sample(index)
         image = self.preprocessor(sample.image, self.master_mask)
         target = torch.as_tensor(self.parameter_space.normalize(sample.target), dtype=torch.float32)
+        if self.quality_features:
+            quality = torch.as_tensor(
+                self.preprocessor.measurement_quality(sample.image, self.master_mask),
+                dtype=torch.float32,
+            )
+            return image, target, quality
         return image, target
 
 

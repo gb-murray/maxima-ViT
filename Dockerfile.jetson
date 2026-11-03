@@ -1,0 +1,43 @@
+FROM nvcr.io/nvidia/pytorch:25.08-py3
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/root/.cache/huggingface
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    libhdf5-dev \
+    libjpeg-dev \
+    libopenjp2-7 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/xrd-geometry
+COPY . /opt/xrd-geometry
+
+# Retain the NVIDIA-optimized PyTorch builds from this base image and the
+# NumPy 1.x ABI used by its native extensions.
+RUN sed -i \
+      -e 's/"torch==2.8.0"/"torch>=2.8.0a0,<2.9"/' \
+      -e 's/"torchvision==0.23.0"/"torchvision>=0.23.0a0,<0.24"/' \
+      -e 's/"numpy==2.3.2"/"numpy>=1.26,<2.0"/' \
+      pyproject.toml \
+    && python3 -m pip install --upgrade pip setuptools wheel "packaging==25.0" \
+    && python3 -m pip install \
+      "fabio==2024.9.0" \
+      "h5py==3.14.0" \
+      "numpy==1.26.4" \
+      "pyFAI==2026.2.1" \
+      "PyYAML==6.0.2" \
+      "scikit-image>=0.24.0" \
+      "scipy>=1.14.0" \
+      "tensorboard>=2.18.0" \
+      "tqdm==4.67.1" \
+      "transformers==4.56.1" \
+    && python3 -m pip install --no-deps -e .
+
+WORKDIR /workspace
+CMD ["sleep", "infinity"]

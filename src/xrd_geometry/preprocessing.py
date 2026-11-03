@@ -20,6 +20,35 @@ class ImagePreprocessor:
     mean: tuple[float, ...] = (0.485, 0.456, 0.406)
     std: tuple[float, ...] = (0.229, 0.224, 0.225)
 
+    def measurement_quality(self, image: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
+        """Summarize photon support before per-image intensity normalization.
+
+        These values are derived from the measurement itself rather than from
+        acquisition metadata.  They allow an uncertainty head to retain count
+        information that percentile normalization intentionally removes from
+        the image tensor used by the mean predictor.
+        """
+
+        array = np.asarray(image, dtype=np.float32)
+        invalid = ~np.isfinite(array)
+        mask_intensity = np.asarray(self.mask_intensity, dtype=array.dtype).item()
+        combined_mask = invalid | (array == mask_intensity)
+        if mask is not None:
+            if mask.shape != array.shape:
+                raise ValueError("Mask shape must match image shape")
+            combined_mask |= mask.astype(bool)
+        valid = np.clip(array[~combined_mask], 0, None)
+        if not valid.size:
+            return np.zeros(3, dtype=np.float32)
+        positive = valid[valid > 0]
+        mean_counts = float(valid.mean())
+        upper_counts = float(np.percentile(valid, 99.0))
+        zero_fraction = float(1.0 - positive.size / valid.size)
+        return np.asarray(
+            [np.log1p(mean_counts), np.log1p(upper_counts), zero_fraction],
+            dtype=np.float32,
+        )
+
     def __post_init__(self) -> None:
         if not 0 <= self.lower_percentile < self.upper_percentile <= 100:
             raise ValueError("Percentiles must be ordered within [0, 100]")
@@ -29,7 +58,8 @@ class ImagePreprocessor:
     def __call__(self, image: np.ndarray, mask: np.ndarray | None = None) -> torch.Tensor:
         array = np.asarray(image, dtype=np.float32).copy()
         invalid = ~np.isfinite(array)
-        inferred_mask = array == self.mask_intensity
+        mask_intensity = np.asarray(self.mask_intensity, dtype=array.dtype).item()
+        inferred_mask = array == mask_intensity
         combined_mask = invalid | inferred_mask
         if mask is not None:
             if mask.shape != array.shape:

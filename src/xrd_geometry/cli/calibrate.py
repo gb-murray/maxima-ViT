@@ -58,13 +58,20 @@ def infer_image(
     target_device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(target_device).eval()
     tensor = preprocessor(image).unsqueeze(0).to(target_device)
+    quality = None
+    if int(model_config.get("quality_dim", 0)):
+        quality = torch.as_tensor(
+            preprocessor.measurement_quality(image),
+            dtype=torch.float32,
+            device=target_device,
+        ).unsqueeze(0)
 
     uncertainty = None
     if model_config.get("head", "deterministic") == "full_covariance":
         estimator_config = dict(uncertainty_config)
         if samples is not None:
             estimator_config["samples"] = samples
-        prediction = build_estimator(estimator_config)(model, tensor, experiment.parameter_space)
+        prediction = build_estimator(estimator_config)(model, tensor, experiment.parameter_space, quality)
         active = prediction.mean[0].detach().cpu().numpy()
         uncertainty = {
             "parameter_names": list(prediction.parameter_names),

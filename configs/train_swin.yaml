@@ -1,9 +1,9 @@
-# XRD geometry training configuration. Paths are relative to the working directory.
+# Example XRD curriculum. Supply your own HDF5 data; paths are relative to the working directory.
 seed: 42
 
 paths:
-  output_dir: models/PRISMS_XRD_2026.10
-  artifact_name: prisms_xrd_2026.10.0.pth
+  output_dir: models/xrd_geometry
+  artifact_name: xrd_geometry_swin.pt
 
 data:
   # The target transform is fixed for the entire curriculum and is read from
@@ -11,15 +11,21 @@ data:
   normalization_source: synthetic_train
   datasets:
     synthetic_train:
-      hdf5_path: data/PHAROS_alpha_Al2O3_Eiger2Cdte_1M_5K_02-09-2026.h5
+      hdf5_path: data/synthetic_xrd.h5
       group: train
       randomize: true
       shuffle: true
     synthetic_validation:
-      hdf5_path: data/PHAROS_alpha_Al2O3_Eiger2Cdte_1M_5K_02-09-2026.h5
-      group: test
+      hdf5_path: data/synthetic_xrd.h5
+      group: validation
       randomize: false
       shuffle: false
+    # Keep test states separate from validation and use them only for final evaluation.
+    # synthetic_test:
+    #   hdf5_path: data/synthetic_xrd.h5
+    #   group: test
+    #   randomize: false
+    #   shuffle: false
     # experimental_train:
     #   hdf5_path: data/experimental_xrd.h5
     #   group: train

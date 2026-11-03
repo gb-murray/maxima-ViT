@@ -60,7 +60,7 @@ class TrainingStage:
     regime: Literal["deterministic", "probabilistic"]
     epochs: int
     learning_rate: float
-    trainable: Literal["head", "backbone", "all"] = "all"
+    trainable: Literal["head", "backbone", "all", "covariance", "quality_adapter"] = "all"
     loss: Literal["l1", "l2", "huber", "gaussian_nll"] = "huber"
     weights: tuple[float, ...] | None = None
     huber_delta: float = 1.0
@@ -117,18 +117,32 @@ def _mean_epoch_loss(
             model.feature_extractor.eval()
         if not any(parameter.requires_grad for parameter in model.head.parameters()):
             model.head.eval()
+        elif isinstance(model.head, FullCovarianceHead):
+            if not any(parameter.requires_grad for parameter in model.head.features.parameters()):
+                model.head.features.eval()
+            if not any(parameter.requires_grad for parameter in model.head.mean.parameters()):
+                model.head.mean.eval()
     total = 0.0
     count = 0
     context = torch.enable_grad() if training else torch.no_grad()
     with context:
-        for batch_index, (images, targets) in enumerate(loader):
+        for batch_index, batch in enumerate(loader):
             if max_batches is not None and batch_index >= max_batches:
                 break
+            if len(batch) == 2:
+                images, targets = batch
+                quality = None
+            elif len(batch) == 3:
+                images, targets, quality = batch
+            else:
+                raise ValueError("Training batches must contain images, targets, and optional quality features")
             images, targets = images.to(device), targets.to(device)
+            if quality is not None:
+                quality = quality.to(device)
             if training:
                 optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=amp_enabled):
-                loss = loss_fn(model(images), targets)
+                loss = loss_fn(model(images, quality), targets)
             if training:
                 if scaler is None:
                     loss.backward()
@@ -161,6 +175,8 @@ def _ensure_regime(
     output_dim: int,
     hidden_dim: int,
     dropout: float,
+    quality_dim: int,
+    quality_hidden_dim: int,
 ) -> None:
     if stage.regime == "deterministic":
         if not isinstance(model.head, DeterministicHead):
@@ -171,7 +187,14 @@ def _ensure_regime(
     if not isinstance(model.head, DeterministicHead):
         raise TypeError("Probabilistic conversion requires a deterministic head")
     old_head = model.head
-    new_head = FullCovarianceHead(feature_dim, output_dim, hidden_dim=hidden_dim, dropout=dropout)
+    new_head = FullCovarianceHead(
+        feature_dim,
+        output_dim,
+        hidden_dim=hidden_dim,
+        dropout=dropout,
+        quality_dim=quality_dim,
+        quality_hidden_dim=quality_hidden_dim,
+    )
     new_head.to(next(model.parameters()).device)
     initialize_probabilistic_head(new_head, old_head, active_indices=tuple(range(output_dim)))
     model.head = new_head
@@ -188,6 +211,8 @@ def run_stages(
     output_dim: int,
     hidden_dim: int = 512,
     dropout: float = 0.1,
+    quality_dim: int = 0,
+    quality_hidden_dim: int = 16,
     dry_run: bool = False,
     mixed_precision: MixedPrecisionConfig | None = None,
     writer: Any | None = None,
@@ -217,6 +242,8 @@ def run_stages(
             output_dim=output_dim,
             hidden_dim=hidden_dim,
             dropout=dropout,
+            quality_dim=quality_dim,
+            quality_hidden_dim=quality_hidden_dim,
         )
         set_trainable_scope(model, stage.trainable)
         trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]

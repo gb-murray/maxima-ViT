@@ -8,7 +8,7 @@ from typing import Protocol
 import torch
 
 from .contracts import ParameterSpace
-from .models import ImageRegressor, enable_dropout
+from .models import ImageRegressor, enable_dropout, enable_stochastic_depth
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,7 @@ class UncertaintyEstimator(Protocol):
         model: ImageRegressor,
         images: torch.Tensor,
         parameter_space: ParameterSpace,
+        quality: torch.Tensor | None = None,
     ) -> GeometryPrediction: ...
 
 
@@ -44,11 +45,13 @@ class MCDropoutEstimator:
         model: ImageRegressor,
         images: torch.Tensor,
         parameter_space: ParameterSpace,
+        quality: torch.Tensor | None = None,
     ) -> GeometryPrediction:
         return predict_with_uncertainty(
             model,
             images,
             parameter_space,
+            quality=quality,
             samples=self.samples,
             stochastic_scope=self.stochastic_scope,
             return_samples=self.return_samples,
@@ -77,21 +80,24 @@ def predict_with_uncertainty(
     samples: int = 32,
     stochastic_scope: str = "head",
     return_samples: bool = False,
+    quality: torch.Tensor | None = None,
 ) -> GeometryPrediction:
     if samples < 1:
         raise ValueError("samples must be positive")
-    if stochastic_scope not in {"head", "all"}:
-        raise ValueError("stochastic_scope must be 'head' or 'all'")
+    if stochastic_scope not in {"head", "backbone", "all"}:
+        raise ValueError("stochastic_scope must be 'head', 'backbone', or 'all'")
 
     model.eval()
     with torch.no_grad():
         if stochastic_scope == "head":
             features = model.extract_features(images)
             enable_dropout(model.head)
-            outputs = [model.forward_head(features) for _ in range(samples)]
+            outputs = [model.forward_head(features, quality) for _ in range(samples)]
         else:
-            enable_dropout(model)
-            outputs = [model(images) for _ in range(samples)]
+            enable_stochastic_depth(model.feature_extractor)
+            if stochastic_scope == "all":
+                enable_dropout(model.head)
+            outputs = [model(images, quality) for _ in range(samples)]
 
     if not all(isinstance(output, tuple) and len(output) == 2 for output in outputs):
         raise TypeError("Uncertainty prediction requires a probabilistic head")

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import random
 from dataclasses import asdict
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -16,6 +18,43 @@ from ..data import HDF5DiffractionDataset
 from ..factory import build_model
 from ..models import FullCovarianceHead
 from ..training import MixedPrecisionConfig, TrainingStage, run_stages
+
+
+def _seed_everything(seed: int) -> None:
+    """Seed model initialization, dropout, shuffling, and worker RNG sources."""
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _adapt_legacy_deterministic_state(
+    state: dict[str, torch.Tensor],
+    *,
+    active_indices: tuple[int, ...],
+    full_dimension: int,
+) -> dict[str, torch.Tensor]:
+    """Select active output rows from a legacy full-parameter head."""
+
+    weight_key = "head.3.weight"
+    bias_key = "head.3.bias"
+    if weight_key not in state or bias_key not in state:
+        return state
+    output_dim = int(state[weight_key].shape[0])
+    if output_dim == len(active_indices):
+        return state
+    if output_dim != full_dimension:
+        raise ValueError(
+            "Legacy deterministic checkpoint output dimension does not match "
+            f"the active ({len(active_indices)}) or full ({full_dimension}) parameter space"
+        )
+    adapted = dict(state)
+    index = torch.as_tensor(active_indices, dtype=torch.long)
+    adapted[weight_key] = state[weight_key].index_select(0, index)
+    adapted[bias_key] = state[bias_key].index_select(0, index)
+    return adapted
 
 
 def train_from_config(
@@ -29,6 +68,7 @@ def train_from_config(
     preprocessor = build_preprocessor(config)
     parameter_space = experiment.parameter_space
     seed = int(config.get("seed", 0))
+    _seed_everything(seed)
 
     training_config = config["training"]
     workers = 0 if dry_run else int(training_config.get("num_workers", 0))
@@ -51,6 +91,9 @@ def train_from_config(
             preprocessor,
             randomize=definition.get("randomize"),
             seed=seed,
+            exposure_range=definition.get("exposure_range"),
+            quality_features=definition.get("quality_features", False),
+            indices=definition.get("indices"),
         )
         for name, definition in dataset_configs.items()
     }
@@ -67,12 +110,13 @@ def train_from_config(
     stages = tuple(TrainingStage.from_dict(stage) for stage in training_config["stages"])
     mixed_precision = MixedPrecisionConfig.from_dict(training_config.get("mixed_precision"))
     model_config = dict(config["model"])
+    requested_model_config = dict(model_config)
     checkpoint_state = None
     checkpoint_metadata = None
     if checkpoint:
         checkpoint_state, checkpoint_metadata = read_checkpoint(checkpoint)
         if checkpoint_metadata is not None:
-            model_config = dict(checkpoint_metadata.model_config)
+            model_config = {**dict(checkpoint_metadata.model_config), **requested_model_config}
     if start_stage is not None:
         matching_indices = [index for index, stage in enumerate(stages) if stage.name == start_stage]
         if not matching_indices:
@@ -82,10 +126,27 @@ def train_from_config(
         stages = tuple(stage for stage in stages if stage.regime == "probabilistic")
     if not stages:
         raise ValueError("No training stages remain after applying resume settings")
+    if checkpoint_state is not None and checkpoint_metadata is None:
+        checkpoint_state = _adapt_legacy_deterministic_state(
+            checkpoint_state,
+            active_indices=parameter_space.active_indices,
+            full_dimension=len(parameter_space.parameters),
+        )
+        if "head.3.weight" in checkpoint_state:
+            model_config["head"] = "deterministic"
     model_config.setdefault("head", "full_covariance" if stages[0].regime == "probabilistic" else "deterministic")
     model = build_model(model_config, output_dim=parameter_space.dimension)
     if checkpoint_state is not None:
-        model.load_state_dict(checkpoint_state)
+        incompatible = model.load_state_dict(checkpoint_state, strict=False)
+        allowed_missing = {
+            name for name in model.state_dict() if name.startswith("head.quality_adapter.")
+        }
+        unexpected_missing = set(incompatible.missing_keys) - allowed_missing
+        if unexpected_missing or incompatible.unexpected_keys:
+            raise RuntimeError(
+                "Checkpoint is incompatible with the configured model: "
+                f"missing={sorted(unexpected_missing)}, unexpected={sorted(incompatible.unexpected_keys)}"
+            )
 
     device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     output_path = Path(config["paths"]["output_dir"]) / config["paths"].get("artifact_name", "xrd_geometry.pt")
@@ -110,6 +171,8 @@ def train_from_config(
             output_dim=parameter_space.dimension,
             hidden_dim=int(model_config.get("head_hidden_dim", 512)),
             dropout=float(model_config.get("dropout", 0.1)),
+            quality_dim=int(model_config.get("quality_dim", 0)),
+            quality_hidden_dim=int(model_config.get("quality_hidden_dim", 16)),
             dry_run=dry_run,
             mixed_precision=mixed_precision,
             writer=writer,

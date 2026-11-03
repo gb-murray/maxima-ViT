@@ -42,6 +42,16 @@ def test_preprocessor_masks_before_percentile_scaling():
     torch.testing.assert_close(output[0, 0, 0], expected_mask_value)
 
 
+def test_measurement_quality_retains_absolute_count_information():
+    processor = ImagePreprocessor(image_size=8)
+    image = np.arange(1, 17, dtype=np.float32).reshape(4, 4)
+    nominal = processor.measurement_quality(image)
+    reduced = processor.measurement_quality(0.1 * image)
+    assert nominal.shape == (3,)
+    assert nominal[0] > reduced[0]
+    assert nominal[1] > reduced[1]
+
+
 def test_legacy_hdf5_adapter_selects_five_targets_and_is_reproducible(tiny_hdf5_file):
     space = parameter_space_from_hdf5(tiny_hdf5_file)
     processor = ImagePreprocessor(image_size=16)
@@ -85,4 +95,25 @@ def test_randomization_changes_reproducibly_by_epoch(tiny_hdf5_file):
     repeated_zero = dataset[0][0]
     assert not torch.equal(epoch_zero, epoch_one)
     torch.testing.assert_close(epoch_zero, repeated_zero)
+    dataset.close()
+
+
+def test_exposure_randomization_and_quality_features(tiny_hdf5_file):
+    space = parameter_space_from_hdf5(tiny_hdf5_file)
+    dataset = HDF5DiffractionDataset(
+        tiny_hdf5_file,
+        "train",
+        space,
+        ImagePreprocessor(image_size=16),
+        seed=9,
+        exposure_range=(0.1, 1.0),
+        quality_features=True,
+        indices=[2],
+    )
+    image, target, quality = dataset[0]
+    assert image.shape == (3, 16, 16)
+    assert target.shape == (5,)
+    assert quality.shape == (3,)
+    assert torch.isfinite(quality).all()
+    assert dataset.raw_sample(0).index == 2
     dataset.close()
