@@ -8,7 +8,7 @@ An end-to-end deep learning model for the rapid and robust determination of 6D d
 This `main` branch preserves the legacy deterministic XRD study, including its
 `maxima_vit` package and study notebooks. The probabilistic `xrd_geometry`
 implementation is developed on the
-[`refactor/packaging` branch](https://github.com/gb-murray/maxima-ViT/tree/refactor/packaging).
+[`feature/probabilistic-calibration` branch](https://github.com/gb-murray/maxima-ViT/tree/feature/probabilistic-calibration).
 
 ## Overview
 
