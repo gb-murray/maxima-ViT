@@ -4,7 +4,7 @@
 
 This repository is the XRD prototype for the future domain-agnostic PRISMS package. The reusable boundaries are exercised here first, while pyFAI-specific simulation and calibration semantics remain in the XRD application.
 
-The `main` branch retains the legacy deterministic study and its notebooks. This branch contains the probabilistic package, tests, and a portable example curriculum.
+The `main` branch retains the legacy deterministic study and its notebooks. The `feature/probabilistic-calibration` branch contains the probabilistic package, tests, and a portable example curriculum.
 
 ## Package structure
 

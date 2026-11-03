@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, refactor/packaging]
+    branches: [main, feature/probabilistic-calibration]
   pull_request:
-    branches: [main, refactor/packaging]
+    branches: [main, feature/probabilistic-calibration]
 
 jobs:
   tests:
